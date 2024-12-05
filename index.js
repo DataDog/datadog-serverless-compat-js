@@ -33,8 +33,8 @@ function getBinaryPath() {
     }
 
     const binaryPathOsFolder = process.platform === 'win32'
-        ? 'datadog-serverless-compat-windows-amd64'
-        : 'datadog-serverless-compat-linux-amd64'
+        ? 'datadog-serverless-compat/windows-amd64'
+        : 'datadog-serverless-compat/linux-amd64'
     const binaryExtension = process.platform === 'win32' ? '.exe' : ''
     const binaryPath = `${__dirname}/${binaryPathOsFolder}/datadog-serverless-compat${binaryExtension}`
 
