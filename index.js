@@ -41,12 +41,6 @@ function getBinaryPath() {
     return binaryPath
 }
 
-function setDefaultEnvVars() {
-    if (process.env.DD_TRACE_STATS_COMPUTATION_ENABLED === undefined) {
-        process.env.DD_TRACE_STATS_COMPUTATION_ENABLED = true
-    }
-}
-
 function start() {
     const environment = getEnvironment()
     logger.debug(`Environment detected: ${environment}`)
@@ -70,8 +64,6 @@ function start() {
         logger.error(`Serverless Compatibility Layer did not start, could not find binary at path ${binaryPath}`)
         return
     }
-
-    setDefaultEnvVars()
 
     try {
         child_process.spawn(binaryPath, { stdio: 'inherit' })
