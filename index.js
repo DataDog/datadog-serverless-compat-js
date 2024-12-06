@@ -1,4 +1,4 @@
-const child_process = require('child_process')
+const childProcess = require('child_process')
 const fs = require('fs')
 const logger = require('./utils/logger');
 
@@ -45,7 +45,7 @@ function start() {
     const environment = getEnvironment()
     logger.debug(`Environment detected: ${environment}`)
 
-    if (environment == cloudEnvironment.UNKNOWN) {
+    if (environment === cloudEnvironment.UNKNOWN) {
         logger.error(`${environment} environment detected, will not start the Datadog Serverless Compatibility Layer`)
         return
     }
@@ -66,7 +66,7 @@ function start() {
     }
 
     try {
-        child_process.spawn(binaryPath, { stdio: 'inherit' })
+        childProcess.spawn(binaryPath, { stdio: 'inherit' })
     } catch (err) {
         logger.error(err, `An unexpected error occurred while spawning Serverless Compatibility Layer process`)
     }

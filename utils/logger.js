@@ -9,7 +9,7 @@ function getLogLevel() {
 
     const logLevel = process.env.DD_LOG_LEVEL.toLowerCase()
 
-    if (logLevel == 'off') {
+    if (logLevel === 'off') {
         return 'silent'
     }
 
