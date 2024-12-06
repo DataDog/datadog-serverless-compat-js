@@ -14,7 +14,7 @@ npm install @datadog/serverless-compat
 3. Add the Datadog Serverless Compatibility Layer and the Datadog Tracer in code.
 
 ```
-require("@datadog/serverless-compat").start();
+require('@datadog/serverless-compat').start();
 
 // This line must come before importing any instrumented module.
 const tracer = require('dd-trace').init();
