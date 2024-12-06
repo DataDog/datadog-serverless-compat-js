@@ -4,8 +4,8 @@ const logger = require('./utils/logger');
 
 const cloudEnvironment = {
     AZURE_FUNCTION: 'Azure Function',
-    GOOGLE_CLOUD_RUN_FUNCTION_V1: 'Google Cloud Run Function v1',
-    GOOGLE_CLOUD_RUN_FUNCTION_V2: 'Google Cloud Run Function v2',
+    GOOGLE_CLOUD_RUN_FUNCTION_1ST_GEN: 'Google Cloud Run Function 1st gen',
+    GOOGLE_CLOUD_RUN_FUNCTION_2ND_GEN: 'Google Cloud Run Function 2nd gen',
     UNKNOWN: 'Unknown'
 }
 
@@ -16,11 +16,11 @@ function getEnvironment() {
     }
 
     if (process.env.FUNCTION_NAME !== undefined && process.env.GCP_PROJECT !== undefined) {
-        return cloudEnvironment.GOOGLE_CLOUD_RUN_FUNCTION_V1;
+        return cloudEnvironment.GOOGLE_CLOUD_RUN_FUNCTION_1ST_GEN;
     }
 
     if (process.env.K_SERVICE !== undefined && process.env.FUNCTION_TARGET !== undefined) {
-        return cloudEnvironment.GOOGLE_CLOUD_RUN_FUNCTION_V2;
+        return cloudEnvironment.GOOGLE_CLOUD_RUN_FUNCTION_2ND_GEN;
     }
 
     return cloudEnvironment.UNKNOWN;
