@@ -1,6 +1,7 @@
 const childProcess = require('child_process')
 const fs = require('fs')
 const logger = require('./utils/logger');
+const path = require('path');
 
 const cloudEnvironment = {
     AZURE_FUNCTION: 'Azure Function',
@@ -33,10 +34,10 @@ function getBinaryPath() {
     }
 
     const binaryPathOsFolder = process.platform === 'win32'
-        ? 'datadog-serverless-compat/windows-amd64'
-        : 'datadog-serverless-compat/linux-amd64'
+        ? path.resolve(__dirname, '../bin/windows-amd64')
+        : path.resolve(__dirname, '../bin/linux-amd64')
     const binaryExtension = process.platform === 'win32' ? '.exe' : ''
-    const binaryPath = `${__dirname}/${binaryPathOsFolder}/datadog-serverless-compat${binaryExtension}`
+    const binaryPath = path.join(binaryPathOsFolder, `datadog-serverless-compat${binaryExtension}`)
 
     return binaryPath
 }
