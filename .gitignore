@@ -1,5 +1,5 @@
-# Compiled Datadog Serverless Compatibility Layer Binaries
-datadog-serverless-compat
+# Compiled Binaries
+bin
 
 # Dependency directories
 node_modules
