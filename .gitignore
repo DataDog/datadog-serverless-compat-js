@@ -1,2 +1,14 @@
+# Compiled Datadog Serverless Compatibility Layer Binaries
 datadog-serverless-compat
+
+# Dependency directories
 node_modules
+
+# Yarn non zero-install. See: https://yarnpkg.com/getting-started/qa#which-files-should-be-gitignored
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
