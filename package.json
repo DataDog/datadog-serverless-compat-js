@@ -20,6 +20,9 @@
     "LICENSE-3rdparty.csv",
     "NOTICE"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "bugs": {
     "url": "https://github.com/DataDog/datadog-serverless-compat-js/issues"
   },
