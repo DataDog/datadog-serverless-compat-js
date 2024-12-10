@@ -21,7 +21,11 @@
     "NOTICE"
   ],
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "executableFiles": [
+      "./bin/linux-amd64/datadog-serverless-compat",
+      "./bin/windows-amd64/datadog-serverless-compat.exe"
+    ]
   },
   "bugs": {
     "url": "https://github.com/DataDog/datadog-serverless-compat-js/issues"
