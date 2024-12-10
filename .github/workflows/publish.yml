@@ -27,13 +27,13 @@ jobs:
           curl --output-dir ./temp/ --create-dirs -O -s -L "https://github.com/DataDog/libdatadog/releases/download/${SERVERLESS_COMPAT_VERSION}/datadog-serverless-agent.zip"
           unzip ./temp/datadog-serverless-agent.zip -d ./temp/datadog-serverless-agent
 
-          mkdir -p datadog-serverless-compat/linux-amd64 datadog-serverless-compat/windows-amd64
-          cp ./temp/datadog-serverless-agent/datadog-serverless-agent-linux-amd64/datadog-serverless-trace-mini-agent datadog-serverless-compat/linux-amd64/datadog-serverless-compat
-          cp ./temp/datadog-serverless-agent/datadog-serverless-agent-windows-amd64/datadog-serverless-trace-mini-agent.exe datadog-serverless-compat/windows-amd64/datadog-serverless-compat.exe
+          mkdir -p bin/linux-amd64 bin/windows-amd64
+          cp ./temp/datadog-serverless-agent/datadog-serverless-agent-linux-amd64/datadog-serverless-trace-mini-agent bin/linux-amd64/datadog-serverless-compat
+          cp ./temp/datadog-serverless-agent/datadog-serverless-agent-windows-amd64/datadog-serverless-trace-mini-agent.exe bin/windows-amd64/datadog-serverless-compat.exe
       - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
-          name: datadog-serverless-compat
-          path: datadog-serverless-compat
+          name: bin
+          path: bin
   publish:
     runs-on: ubuntu-latest
     needs: [build]
