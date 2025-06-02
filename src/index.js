@@ -42,20 +42,18 @@ function getBinaryPath() {
     return binaryPath
 }
 
-// Pass package version to binary via environment variable
-function setPackageVersion() {
+function getPackageVersion() {
     let packageVersion
 
     try {
-        const { version } = require('../package.json');
-        packageVersion = version;
+        const { version } = require('../package.json')
+        packageVersion = version
     } catch (err) {
         logger.error(`Unable to identify package version: ${err}`)
-        packageVersion = "unknown";
+        packageVersion = "unknown"
     }
 
-    logger.debug(`Setting DD_SERVERLESS_COMPAT_VERSION to ${packageVersion}`)
-    process.env.DD_SERVERLESS_COMPAT_VERSION = packageVersion
+    return packageVersion
 }
 
 function start() {
@@ -82,10 +80,12 @@ function start() {
         return
     }
 
-    setPackageVersion()
+    const packageVersion = getPackageVersion()
+    logger.debug(`Found package version ${packageVersion}`)
 
     try {
-        childProcess.spawn(binaryPath, { stdio: 'inherit' })
+        const env = { ...process.env, DD_SERVERLESS_COMPAT_VERSION: packageVersion }
+        childProcess.spawn(binaryPath, { stdio: 'inherit', env: env })
     } catch (err) {
         logger.error(err, `An unexpected error occurred while spawning Serverless Compatibility Layer process`)
     }
