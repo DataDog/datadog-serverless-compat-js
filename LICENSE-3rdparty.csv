@@ -1,6 +1,6 @@
 Component,Origin,License,Copyright
-require,pino,MIT,Copyright (c) 2016-2024 Matteo Collina, David Mark Clements and the Pino contributors listed at https://github.com/pinojs/pino#the-team and in the README file.
-require,pino-pretty,Copyright (c) 2019 the Pino team listed at https://github.com/pinojs/pino#the-team
-dev,eslint,MIT,Copyright OpenJS Foundation and other contributors, <www.openjsf.org>
-dev,@eslint/js,MIT,Copyright OpenJS Foundation and other contributors, <www.openjsf.org>
-dev,globals,MIT,Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
+eslint,https://github.com/eslint/eslint,MIT,"Copyright OpenJS Foundation and other contributors, <www.openjsf.org>"
+@eslint/js,https://github.com/eslint/eslint,MIT,"Copyright OpenJS Foundation and other contributors, <www.openjsf.org>"
+globals,https://github.com/sindresorhus/globals,MIT,Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
+pino,https://github.com/pinojs/pino,MIT,"Copyright (c) 2016-2024 Matteo Collina, David Mark Clements and the Pino contributors listed at https://github.com/pinojs/pino#the-team and in the README file."
+pino-pretty,https://github.com/pinojs/pino-pretty,MIT,Copyright (c) 2019 the Pino team listed at https://github.com/pinojs/pino#the-team
