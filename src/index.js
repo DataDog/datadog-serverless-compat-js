@@ -1,6 +1,7 @@
 const childProcess = require('child_process')
 const fs = require('fs')
 const logger = require('./utils/logger');
+const os = require('os');
 const path = require('path');
 
 const cloudEnvironment = {
@@ -73,7 +74,6 @@ function start() {
     }
 
     const binaryPath = getBinaryPath()
-    logger.debug(`Spawning process from binary at path ${binaryPath}`)
 
     if (!fs.existsSync(binaryPath)) {
         logger.error(`Serverless Compatibility Layer did not start, could not find binary at path ${binaryPath}`)
@@ -84,8 +84,15 @@ function start() {
     logger.debug(`Found package version ${packageVersion}`)
 
     try {
+        const tempDir = path.join(os.tmpdir(), "datadog")
+        fs.mkdirSync(tempDir, { recursive: true });
+        const executableFilePath = path.join(tempDir, path.basename(binaryPath));
+        fs.copyFileSync(binaryPath, executableFilePath);
+        fs.chmodSync(executableFilePath, 0o755);
+        logger.debug(`Spawning process from binary at path ${executableFilePath}`)
+
         const env = { ...process.env, DD_SERVERLESS_COMPAT_VERSION: packageVersion }
-        childProcess.spawn(binaryPath, { stdio: 'inherit', env: env })
+        childProcess.spawn(executableFilePath, { stdio: 'inherit', env: env })
     } catch (err) {
         logger.error(err, `An unexpected error occurred while spawning Serverless Compatibility Layer process`)
     }
