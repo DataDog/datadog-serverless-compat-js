@@ -88,7 +88,7 @@ function start() {
         fs.mkdirSync(tempDir, { recursive: true });
         const executableFilePath = path.join(tempDir, path.basename(binaryPath));
         fs.copyFileSync(binaryPath, executableFilePath);
-        fs.chmodSync(executableFilePath, 0o755);
+        fs.chmodSync(executableFilePath, 0o744);
         logger.debug(`Spawning process from binary at path ${executableFilePath}`)
 
         const env = { ...process.env, DD_SERVERLESS_COMPAT_VERSION: packageVersion }
