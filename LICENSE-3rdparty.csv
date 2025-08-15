@@ -1,4 +1,6 @@
 Component,Origin,License,Copyright
 @eslint/js,https://github.com/eslint/eslint,MIT,"Copyright OpenJS Foundation and other contributors, <www.openjsf.org>"
+@types/node,https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node,MIT,Copyright Node.js contributors
 eslint,https://github.com/eslint/eslint,MIT,"Copyright OpenJS Foundation and other contributors, <www.openjsf.org>"
 globals,https://github.com/sindresorhus/globals,MIT,Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
+typescript,https://github.com/microsoft/TypeScript,Apache-2.0,Copyright (c) Microsoft Corporation
