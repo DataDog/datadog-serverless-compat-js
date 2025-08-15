@@ -1,6 +1,6 @@
 const childProcess = require('child_process')
+const defaultLogger = require('./utils/log');
 const fs = require('fs')
-const logger = require('./utils/logger');
 const os = require('os');
 const path = require('path');
 
@@ -43,7 +43,7 @@ function getBinaryPath() {
     return binaryPath
 }
 
-function getPackageVersion() {
+function getPackageVersion(logger) {
     let packageVersion
 
     try {
@@ -57,7 +57,7 @@ function getPackageVersion() {
     return packageVersion
 }
 
-function start() {
+function start(logger = defaultLogger) {
     const environment = getEnvironment()
     logger.debug(`Environment detected: ${environment}`)
 
