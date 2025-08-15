@@ -9,7 +9,8 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "**/*.spec.ts"]

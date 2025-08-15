@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, copyFileSync, chmodSync } from 'fs';
 import { tmpdir } from 'os';
 import { resolve, join, basename } from 'path';
 import defaultLogger, { Logger } from './utils/log';
+import { version } from '../package.json';
 
 enum CloudEnvironment {
   AZURE_FUNCTION = 'Azure Function',
@@ -52,17 +53,6 @@ function getBinaryPath(): string {
   );
 }
 
-function getPackageVersion(logger: Logger = defaultLogger): string {
-  try {
-    // `require` works here for JSON without compiler issues
-    const { version } = require('../package.json');
-    return version;
-  } catch (err) {
-    logger.error(`Unable to identify package version: ${err}`);
-    return 'unknown';
-  }
-}
-
 function start(logger: Logger = defaultLogger): void {
   const environment = getEnvironment();
   logger.debug(`Environment detected: ${environment}`);
@@ -92,7 +82,7 @@ function start(logger: Logger = defaultLogger): void {
     return;
   }
 
-  const packageVersion = getPackageVersion(logger);
+  const packageVersion = version;
   logger.debug(`Found package version ${packageVersion}`);
 
   try {
