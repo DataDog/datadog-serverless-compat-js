@@ -2,7 +2,7 @@ import { spawn } from 'child_process';
 import { existsSync, mkdirSync, copyFileSync, chmodSync } from 'fs';
 import { tmpdir } from 'os';
 import { resolve, join, basename } from 'path';
-import defaultLogger, { Logger } from 'utils/log';
+import defaultLogger, { Logger } from './utils/log';
 
 enum CloudEnvironment {
   AZURE_FUNCTION = 'Azure Function',
