@@ -6,7 +6,9 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "clean": "rimraf dist",
     "lint": "node scripts/check_licenses.js && yarn run eslint . && yarn npm audit",
+    "prebuild": "node -p \"'export const LIB_VERSION = ' + JSON.stringify(require('./package.json').version) + ';'\" > src/version.ts",
     "test": "jest"
   },
   "repository": "github.com/DataDog/datadog-serverless-compat-js",
@@ -42,6 +44,7 @@
     "eslint": "^9.16.0",
     "globals": "^15.13.0",
     "jest": "^30.0.5",
+    "rimraf": "^6.0.1",
     "ts-jest": "^29.4.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2"

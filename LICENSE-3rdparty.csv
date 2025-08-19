@@ -6,6 +6,7 @@ dev,@types/node,https://github.com/DefinitelyTyped/DefinitelyTyped,MIT,Copyright
 dev,eslint,https://github.com/eslint/eslint,MIT,"Copyright OpenJS Foundation and other contributors, <www.openjsf.org>"
 dev,globals,https://github.com/sindresorhus/globals,MIT,Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
 dev,jest,https://github.com/jestjs/jest,MIT,"Copyright (c) Meta Platforms, Inc. and affiliates.Copyright Contributors to the Jest project."
+dev,rimraf,https://github.com/isaacs/rimraf,ISC,Copyright (c) 2011-2023 Isaac Z. Schlueter and Contributors
 dev,ts-jest,https://github.com/kulshekhar/ts-jest,MIT,Copyright (c) 2016-2025
 dev,ts-node,https://github.com/TypeStrong/ts-node,MIT,Copyright (c) 2014 Blake Embrey (hello@blakeembrey.com)
 dev,typescript,https://github.com/microsoft/TypeScript,Apache-2.0,Copyright (c) Microsoft Corporation
