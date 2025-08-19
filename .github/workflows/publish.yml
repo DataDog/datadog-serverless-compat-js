@@ -60,6 +60,7 @@ jobs:
           node-version: "18.x"
       - run: yarn version ${{ env.PACKAGE_VERSION }}
       - run: yarn
+      - run: yarn build
       - run: yarn pack
       - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
@@ -84,6 +85,7 @@ jobs:
           NPM_PUBLISH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
       - run: yarn version ${{ env.PACKAGE_VERSION }}
       - run: yarn
+      - run: yarn build
       - run: yarn npm publish
   release:
     if: ${{ github.event.inputs.publish-package == 'Build and Publish' }}

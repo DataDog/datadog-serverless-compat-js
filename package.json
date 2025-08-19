@@ -2,9 +2,12 @@
   "name": "@datadog/serverless-compat",
   "version": "0.0.0",
   "description": "Datadog Serverless Compatibility Layer to Enable Tracing and Metrics in Node.js",
-  "main": "src/index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "lint": "node scripts/check_licenses.js && yarn run eslint . && yarn npm audit"
+    "build": "tsc",
+    "lint": "node scripts/check_licenses.js && yarn run eslint . && yarn npm audit",
+    "test": "jest"
   },
   "repository": "github.com/DataDog/datadog-serverless-compat-js",
   "keywords": [
@@ -15,7 +18,7 @@
   "license": "Apache-2.0",
   "packageManager": "yarn@4.5.3",
   "files": [
-    "src/**/*",
+    "dist/**/*",
     "bin/**/*",
     "LICENSE-3rdparty.csv",
     "NOTICE"
@@ -33,11 +36,14 @@
   "homepage": "https://github.com/DataDog/datadog-serverless-compat-js#readme",
   "devDependencies": {
     "@eslint/js": "^9.16.0",
+    "@jest/globals": "^30.0.5",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.3.0",
     "eslint": "^9.16.0",
-    "globals": "^15.13.0"
-  },
-  "dependencies": {
-    "pino": "^9.5.0",
-    "pino-pretty": "^13.0.0"
+    "globals": "^15.13.0",
+    "jest": "^30.0.5",
+    "ts-jest": "^29.4.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
   }
 }
