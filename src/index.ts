@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, copyFileSync, chmodSync } from 'fs';
 import { tmpdir } from 'os';
 import { resolve, join, basename } from 'path';
 import defaultLogger, { Logger } from './utils/log';
-import { version as packageVersion } from '../package.json';
+import { LIB_VERSION as packageVersion } from './version';
 
 enum CloudEnvironment {
   AZURE_FUNCTION = 'Azure Function',

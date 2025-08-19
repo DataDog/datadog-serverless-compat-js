@@ -2,12 +2,13 @@
   "name": "@datadog/serverless-compat",
   "version": "0.0.0",
   "description": "Datadog Serverless Compatibility Layer to Enable Tracing and Metrics in Node.js",
-  "main": "dist/src/index.js",
-  "types": "dist/src/index.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "clean": "rimraf dist",
     "lint": "node scripts/check_licenses.js && yarn run eslint . && yarn npm audit",
+    "prebuild": "node -p \"'export const LIB_VERSION = ' + JSON.stringify(require('./package.json').version) + ';'\" > src/version.ts",
     "test": "jest"
   },
   "repository": "github.com/DataDog/datadog-serverless-compat-js",
