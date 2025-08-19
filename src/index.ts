@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, copyFileSync, chmodSync } from 'fs';
 import { tmpdir } from 'os';
 import { resolve, join, basename } from 'path';
 import defaultLogger, { Logger } from './utils/log';
-import { version } from '../package.json';
+import { version as packageVersion } from '../package.json';
 
 enum CloudEnvironment {
   AZURE_FUNCTION = 'Azure Function',
@@ -44,8 +44,8 @@ function getBinaryPath(): string {
 
   const binaryPathOsFolder =
     process.platform === 'win32'
-      ? resolve(__dirname, '../bin/windows-amd64')
-      : resolve(__dirname, '../bin/linux-amd64');
+      ? resolve(__dirname, '..', 'bin', 'windows-amd64')
+      : resolve(__dirname, '..', 'bin', 'linux-amd64');
   const binaryExtension = process.platform === 'win32' ? '.exe' : '';
   return join(
     binaryPathOsFolder,
@@ -82,7 +82,6 @@ function start(logger: Logger = defaultLogger): void {
     return;
   }
 
-  const packageVersion = version;
   logger.debug(`Found package version ${packageVersion}`);
 
   try {
@@ -102,9 +101,7 @@ function start(logger: Logger = defaultLogger): void {
     spawn(executableFilePath, { stdio: 'inherit', env });
   } catch (err) {
     logger.error(
-      `An unexpected error occurred while spawning Serverless Compatibility Layer process: ${String(
-        err
-      )}`
+      `An unexpected error occurred while spawning Serverless Compatibility Layer process: ${err}`
     );
   }
 }
