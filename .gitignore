@@ -13,6 +13,9 @@ node_modules
 !.yarn/sdks
 !.yarn/versions
 
+# Package build output
+*.tgz
+
 # TypeScript compiled output
 dist/
 
