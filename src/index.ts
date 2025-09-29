@@ -80,13 +80,11 @@ function start(logger: Logger = defaultLogger): void {
     return;
   }
 
-  if (environment === CloudEnvironment.AZURE_FUNCTION) {
-    if (isAzureFlexWithoutDDAzureResourceGroup()) {
-      logger.error(
-        "Azure function detected on flex consumption plan without DD_AZURE_RESOURCE_GROUP set. Please set the DD_AZURE_RESOURCE_GROUP environment variable to your resource group name in Azure app settings. Shutting down Datadog Serverless Compatibility Layer."
-      );
-      return;
-    }
+  if (environment === CloudEnvironment.AZURE_FUNCTION && isAzureFlexWithoutDDAzureResourceGroup()) {
+    logger.error(
+      "Azure function detected on flex consumption plan without DD_AZURE_RESOURCE_GROUP set. Please set the DD_AZURE_RESOURCE_GROUP environment variable to your resource group name in Azure app settings. Shutting down Datadog Serverless Compatibility Layer."
+    );
+    return;
   }
 
   const binaryPath = getBinaryPath();
