@@ -54,7 +54,10 @@ function getBinaryPath(): string {
 }
 
 function isAzureFlexWithoutDDAzureResourceGroup(): boolean {
-  return (process.env.WEBSITE_SKU === "FlexConsumption" && process.env.DD_AZURE_RESOURCE_GROUP === undefined);
+  return (
+    process.env.WEBSITE_SKU === "FlexConsumption" &&
+    (!process.env.DD_AZURE_RESOURCE_GROUP || !process.env.DD_AZURE_RESOURCE_GROUP.trim())
+  );
 }
 
 function start(logger: Logger = defaultLogger): void {
