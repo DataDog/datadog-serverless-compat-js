@@ -53,6 +53,13 @@ function getBinaryPath(): string {
   );
 }
 
+function isAzureFlexWithoutDDAzureResourceGroup(): boolean {
+  return (
+    process.env.WEBSITE_SKU === "FlexConsumption" &&
+    (!process.env.DD_AZURE_RESOURCE_GROUP || !process.env.DD_AZURE_RESOURCE_GROUP.trim())
+  );
+}
+
 function start(logger: Logger = defaultLogger): void {
   const environment = getEnvironment();
   logger.debug(`Environment detected: ${environment}`);
@@ -69,6 +76,13 @@ function start(logger: Logger = defaultLogger): void {
   if (process.platform !== 'win32' && process.platform !== 'linux') {
     logger.error(
       `Platform ${process.platform} detected, the Datadog Serverless Compatibility Layer is only supported on Windows and Linux`
+    );
+    return;
+  }
+
+  if (environment === CloudEnvironment.AZURE_FUNCTION && isAzureFlexWithoutDDAzureResourceGroup()) {
+    logger.error(
+      "Azure function detected on flex consumption plan without DD_AZURE_RESOURCE_GROUP set. Please set the DD_AZURE_RESOURCE_GROUP environment variable to your resource group name in Azure app settings. Shutting down Datadog Serverless Compatibility Layer."
     );
     return;
   }
