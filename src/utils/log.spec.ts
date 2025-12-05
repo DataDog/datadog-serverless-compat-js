@@ -1,4 +1,4 @@
-import { Logger } from "./log";
+import log, { Logger } from "./log";
 
 describe("log", () => {
     const logLevels: (string | null)[] = ["trace", "debug", "info", "warn", "error", "critical", "off", "invalid", null];
@@ -68,6 +68,42 @@ describe("log", () => {
             if (failures.length > 0) {
                 throw new Error(failures.join("\n"));
             }
+        });
+    });
+
+    describe("the logger formatting", () => {
+        const baseEnv = { ...process.env };
+        let log: Logger;
+
+        beforeEach(() => {
+            process.env = { ...baseEnv };
+            process.env.DD_LOG_LEVEL = 'debug'; // Set to debug to enable all log levels
+            jest.resetModules();
+            log = require("./log").log;
+        });
+
+        afterEach(() => {
+            process.env = baseEnv;
+        });
+        
+        it.each([
+            { method: 'debug' as keyof Logger, consoleMethod: 'debug', level: 'DEBUG' },
+            { method: 'info' as keyof Logger, consoleMethod: 'info', level: 'INFO' },
+            { method: 'warn' as keyof Logger, consoleMethod: 'warn', level: 'WARN' },
+            { method: 'error' as keyof Logger, consoleMethod: 'error', level: 'ERROR' },
+        ])("applies correct formatting for $method log", ({ method, consoleMethod, level }) => {
+            const consoleSpy = jest.spyOn(console, consoleMethod as any).mockImplementation(() => { });
+
+            log[method]("test message");
+
+            expect(consoleSpy).toHaveBeenCalledTimes(1);
+            const actualCall = consoleSpy.mock.calls[0][0];
+            
+            // Check the format: LEVEL [name] [filename:lineNumber] - message
+            // Should report the actual caller's location (log.spec.ts), not log.ts
+            expect(actualCall).toMatch(new RegExp(`^${level} \\[datadog-serverless-compat\\] \\[log\\.spec\\.ts:\\d+\\] - test message$`));
+            
+            consoleSpy.mockRestore();
         });
     });
 });
