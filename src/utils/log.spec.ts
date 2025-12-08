@@ -90,7 +90,6 @@ describe("log", () => {
             { method: 'debug' as keyof Logger, consoleMethod: 'debug', level: 'DEBUG' },
             { method: 'info' as keyof Logger, consoleMethod: 'info', level: 'INFO' },
             { method: 'warn' as keyof Logger, consoleMethod: 'warn', level: 'WARN' },
-            { method: 'error' as keyof Logger, consoleMethod: 'error', level: 'ERROR' },
         ])("applies correct formatting for $method log", ({ method, consoleMethod, level }) => {
             const consoleSpy = jest.spyOn(console, consoleMethod as any).mockImplementation(() => { });
 
@@ -98,10 +97,58 @@ describe("log", () => {
 
             expect(consoleSpy).toHaveBeenCalledTimes(1);
             const actualCall = consoleSpy.mock.calls[0][0];
-            
+
             // Check the format: LEVEL [name] [filename:lineNumber] - message
             // Should report the actual caller's location (log.spec.ts), not log.ts
             expect(actualCall).toMatch(new RegExp(`^${level} \\[datadog-serverless-compat\\] \\[log\\.spec\\.ts:\\d+\\] - test message$`));
+
+            consoleSpy.mockRestore();
+        });
+
+        it("applies correct formatting for error log with string message", () => {
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
+
+            log.error("test message");
+
+            expect(consoleSpy).toHaveBeenCalledTimes(1);
+            const actualCall = consoleSpy.mock.calls[0][0];
+
+            // For string messages, should format normally
+            expect(actualCall).toMatch(/^ERROR \[datadog-serverless-compat\] \[log\.spec\.ts:\d+\] - test message$/);
+
+            consoleSpy.mockRestore();
+        });
+
+        it("applies correct formatting for error log with Error object", () => {
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
+
+            const error = new Error("test error");
+            log.error(error);
+
+            expect(consoleSpy).toHaveBeenCalledTimes(1);
+            const actualCall = consoleSpy.mock.calls[0][0];
+
+            // For Error objects, the full Error is logged with the formatted message
+            expect(actualCall).toBeInstanceOf(Error);
+            expect(actualCall.message).toMatch(/^ERROR \[datadog-serverless-compat\] \[log\.spec\.ts:\d+\] - test error$/);
+            // Stack trace should be preserved
+            expect(actualCall.stack).toBeDefined();
+
+            consoleSpy.mockRestore();
+        });
+
+        it("handles logging from eval context", () => {
+            const consoleSpy = jest.spyOn(console, 'info').mockImplementation(() => { });
+
+            // Call log.info from within an eval context
+            eval('log.info("message from eval")');
+
+            expect(consoleSpy).toHaveBeenCalledTimes(1);
+            const actualCall = consoleSpy.mock.calls[0][0];
+            
+            // Should report the location where eval was called (log.spec.ts), not just "eval"
+            // The format should still be: INFO [datadog-serverless-compat] [filename:lineNumber] - message
+            expect(actualCall).toMatch(/^INFO \[datadog-serverless-compat\] \[log\.spec\.ts:\d+\] - message from eval$/);
             
             consoleSpy.mockRestore();
         });
