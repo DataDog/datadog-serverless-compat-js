@@ -86,7 +86,7 @@ function getCallerInfo(): string {
       }
 
       // Skip if no filename and skip the logger file itself. Package is serverless-compat, repo is datadog-serverless-compat-js.
-      if (!fileName || fileName.endsWith(join(sep, 'serverless-compat', 'src', 'utils', 'log.ts')) || fileName.endsWith(join(sep, 'datadog-serverless-compat-js', 'src', 'utils', 'log.ts'))) {
+      if (!fileName || /serverless-compat[^/\\]*[/\\].*[/\\]utils[/\\]log\.(ts|js)$/.test(fileName)) {  
         continue;
       }
 
