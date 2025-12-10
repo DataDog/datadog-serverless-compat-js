@@ -63,10 +63,14 @@ export function logger(callSite: string): Logger {
         ? (err: string | Error) => {
             if (err instanceof Error) {
               const formatted = formatLog('ERROR', location, err.message);
-              // Log with the formatted message and original stack, but avoid mutating the original error.
-              const formattedError = new Error(formatted);
-              formattedError.stack = err.stack;
-              console.error(formattedError);
+              // Preserve the stack trace but replace the first line with our formatted message
+              if (err.stack) {
+                const stackLines = err.stack.split('\n');
+                stackLines[0] = formatted; // Replace "Error: message" with formatted message
+                console.error(stackLines.join('\n'));
+              } else {
+                console.error(formatted);
+              }
             } else {
               console.error(formatLog('ERROR', location, err));
             }

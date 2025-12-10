@@ -130,11 +130,36 @@ describe("log", () => {
             expect(consoleSpy).toHaveBeenCalledTimes(1);
             const actualCall = consoleSpy.mock.calls[0][0];
 
-            // For Error objects, the full Error is logged with the formatted message
-            expect(actualCall).toBeInstanceOf(Error);
-            expect(actualCall.message).toBe('ERROR [datadog-serverless-compat] [log.spec.ts] - test error');
-            // Stack trace should be preserved
-            expect(actualCall.stack).toBeDefined();
+            // console.error should receive a string (the modified stack trace), not an Error object
+            expect(typeof actualCall).toBe('string');
+            
+            const lines = actualCall.split('\n');
+            
+            // First line should be our formatted message
+            expect(lines[0]).toBe('ERROR [datadog-serverless-compat] [log.spec.ts] - test error');
+            
+            // Subsequent lines should contain the stack trace
+            expect(lines.length).toBeGreaterThan(1);
+            const hasStackTrace = lines.slice(1).some((line: string) => line.includes('at '));
+            if (!hasStackTrace) {
+                throw new Error(`Expected stack trace to be preserved in subsequent lines, but got:\n${lines.slice(1).join('\n')}`);
+            }
+
+            consoleSpy.mockRestore();
+        });
+
+        it("applies correct formatting for error log with Error object without stack", () => {
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
+
+            const error = new Error("test error");
+            delete error.stack; // Remove stack property
+            log.error(error);
+
+            expect(consoleSpy).toHaveBeenCalledTimes(1);
+            const actualCall = consoleSpy.mock.calls[0][0];
+
+            // When no stack is present, should just log the formatted message
+            expect(actualCall).toBe('ERROR [datadog-serverless-compat] [log.spec.ts] - test error');
 
             consoleSpy.mockRestore();
         });
