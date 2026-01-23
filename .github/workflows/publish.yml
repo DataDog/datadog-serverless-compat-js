@@ -70,6 +70,8 @@ jobs:
   publish:
     if: ${{ github.event.inputs.publish-package == 'Build and Publish' }}
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     needs: [downloadbinaries]
     env:
       PACKAGE_VERSION: ${{ needs.downloadbinaries.outputs.package-version }}
