@@ -92,9 +92,6 @@ jobs:
       - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: "18.x"
-      - run: yarn config set npmAuthToken $NPM_PUBLISH_TOKEN
-        env:
-          NPM_PUBLISH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
       - run: yarn version ${{ env.PACKAGE_VERSION }}
       - run: yarn
       - run: yarn prebuild
