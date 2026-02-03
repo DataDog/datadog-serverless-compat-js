@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { randomUUID } from 'crypto';
 import { existsSync, mkdirSync, copyFileSync, chmodSync } from 'fs';
 import { tmpdir } from 'os';
 import { resolve, join, basename } from 'path';
@@ -62,6 +63,49 @@ function isAzureFlexWithoutDDAzureResourceGroup(): boolean {
   );
 }
 
+function configurePipeNames(logger: Logger): void {
+  // Generate a unique GUID for this function instance to avoid conflicts
+  // when running multiple Azure Functions in the same namespace
+  const guid = randomUUID();
+
+  // Configure tracer pipe name
+  // Use DD_TRACE_WINDOWS_PIPE_NAME as base if set, otherwise use default, then append GUID
+  const traceBaseName = process.env.DD_TRACE_WINDOWS_PIPE_NAME || 'DD_TRACE';
+  const traceWindowsPipeName = `${traceBaseName}_${guid}`;
+
+  // Alert if DD_TRACE_PIPE_NAME is different from DD_TRACE_WINDOWS_PIPE_NAME
+  if (process.env.DD_TRACE_PIPE_NAME && process.env.DD_TRACE_PIPE_NAME !== traceWindowsPipeName) {
+    logger.warn(
+      `DD_TRACE_PIPE_NAME (${process.env.DD_TRACE_PIPE_NAME}) differs from DD_TRACE_WINDOWS_PIPE_NAME (${traceWindowsPipeName}). Using DD_TRACE_WINDOWS_PIPE_NAME with GUID suffix.`
+    );
+  }
+
+  // Normalize tracer pipe name (ensure <= 256 characters)
+  const normalizedTracePipeName = traceWindowsPipeName.substring(0, 256);
+  process.env.DD_TRACE_PIPE_NAME = normalizedTracePipeName;
+  process.env.DD_TRACE_WINDOWS_PIPE_NAME = normalizedTracePipeName;
+
+  // Configure dogstatsd pipe name
+  // Use DD_DOGSTATSD_WINDOWS_PIPE_NAME as base if set, otherwise use default, then append GUID
+  const dogstatsdBaseName = process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME || 'DD_DOGSTATSD';
+  const dogstatsdWindowsPipeName = `${dogstatsdBaseName}_${guid}`;
+
+  // Alert if DD_DOGSTATSD_PIPE_NAME is different from DD_DOGSTATSD_WINDOWS_PIPE_NAME
+  if (process.env.DD_DOGSTATSD_PIPE_NAME && process.env.DD_DOGSTATSD_PIPE_NAME !== dogstatsdWindowsPipeName) {
+    logger.warn(
+      `DD_DOGSTATSD_PIPE_NAME (${process.env.DD_DOGSTATSD_PIPE_NAME}) differs from DD_DOGSTATSD_WINDOWS_PIPE_NAME (${dogstatsdWindowsPipeName}). Using DD_DOGSTATSD_WINDOWS_PIPE_NAME with GUID suffix.`
+    );
+  }
+
+  // Normalize dogstatsd pipe name (ensure <= 256 characters)
+  const normalizedDogstatsdPipeName = dogstatsdWindowsPipeName.substring(0, 256);
+  process.env.DD_DOGSTATSD_PIPE_NAME = normalizedDogstatsdPipeName;
+  process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME = normalizedDogstatsdPipeName;
+
+  logger.debug(`Configured trace pipe name: ${normalizedTracePipeName}`);
+  logger.debug(`Configured dogstatsd pipe name: ${normalizedDogstatsdPipeName}`);
+}
+
 function start(logger: Logger = defaultLogger): void {
   const environment = getEnvironment();
   logger.debug(`Environment detected: ${environment}`);
@@ -100,6 +144,9 @@ function start(logger: Logger = defaultLogger): void {
 
   logger.debug(`Found package version ${packageVersion}`);
 
+  // Configure unique named pipes to avoid conflicts when running multiple functions
+  configurePipeNames(logger);
+
   try {
     const tempDir = join(tmpdir(), 'datadog');
     mkdirSync(tempDir, { recursive: true });
@@ -122,4 +169,4 @@ function start(logger: Logger = defaultLogger): void {
   }
 }
 
-export { start };
+export { start, configurePipeNames };
