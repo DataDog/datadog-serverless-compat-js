@@ -68,63 +68,42 @@ function configurePipeNames(logger: Logger): void {
   // when running multiple Azure Functions in the same namespace
   const guid = randomUUID();
 
-  // Windows named pipes have the prefix \\.\pipe\ (9 characters)
-  // Maximum total length is 256, so pipe name can be at most 256 - 9 = 247
-  const PIPE_PREFIX_LENGTH = 9; // \\.\pipe\
-  const MAX_PIPE_NAME_LENGTH = 256 - PIPE_PREFIX_LENGTH; // 247
-  const guidLength = guid.length;
-  const maxBaseLength = MAX_PIPE_NAME_LENGTH - 1 - guidLength; // -1 for underscore
+  // Windows pipe limit is 256 chars including \\.\pipe\ prefix (9 chars), leaving 247 for the name
+  // Pipe name format: {base}_{guid}, where guid is always 36 chars, leaving 210 chars for base
+  const MAX_BASE_LENGTH = 210;
 
-  // Configure tracer pipe name
-  // Use DD_TRACE_WINDOWS_PIPE_NAME as base if set, otherwise use default
-  let traceBaseName = process.env.DD_TRACE_WINDOWS_PIPE_NAME || 'DD_TRACE';
+  // DogStatsD uses DD_TRACE_AGENT_URL as metricsProxyUrl, so there's only one pipe for the whole layer
+  // Priority: DD_TRACE_WINDOWS_PIPE_NAME > DD_DOGSTATSD_WINDOWS_PIPE_NAME > extract from DD_TRACE_AGENT_URL > default
+  let baseName = process.env.DD_TRACE_WINDOWS_PIPE_NAME
+    || process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME
+    || (process.env.DD_TRACE_AGENT_URL ? process.env.DD_TRACE_AGENT_URL.replace(/^unix:\\\\\.\\pipe\\/, '') : null)
+    || 'dd_compat_pipe';
 
-  // Truncate base name if needed to ensure base_guid fits within MAX_PIPE_NAME_LENGTH
-  if (traceBaseName.length > maxBaseLength) {
+  // Truncate base name if needed to ensure base_guid fits within limit
+  if (baseName.length > MAX_BASE_LENGTH) {
     logger.warn(
-      `DD_TRACE base name is too long (${traceBaseName.length} chars). Truncating to ${maxBaseLength} chars to fit within 256 character limit with GUID.`
+      `Pipe base name is too long (${baseName.length} chars). Truncating to ${MAX_BASE_LENGTH} chars to fit within 256 character limit with GUID.`
     );
-    traceBaseName = traceBaseName.substring(0, maxBaseLength);
+    baseName = baseName.substring(0, MAX_BASE_LENGTH);
   }
 
-  const traceWindowsPipeName = `${traceBaseName}_${guid}`;
+  const pipeName = `${baseName}_${guid}`;
+  const agentUrl = `unix:\\\\.\\pipe\\${pipeName}`;
 
-  // Alert if DD_TRACE_PIPE_NAME is different from DD_TRACE_WINDOWS_PIPE_NAME
-  if (process.env.DD_TRACE_PIPE_NAME && process.env.DD_TRACE_PIPE_NAME !== traceWindowsPipeName) {
+  // Alert if DD_TRACE_AGENT_URL is manually set and differs from generated value
+  if (process.env.DD_TRACE_AGENT_URL && process.env.DD_TRACE_AGENT_URL !== agentUrl) {
     logger.warn(
-      `DD_TRACE_PIPE_NAME (${process.env.DD_TRACE_PIPE_NAME}) differs from DD_TRACE_WINDOWS_PIPE_NAME (${traceWindowsPipeName}). Using DD_TRACE_WINDOWS_PIPE_NAME with GUID suffix.`
-    );
-  }
-
-  process.env.DD_TRACE_PIPE_NAME = traceWindowsPipeName;
-  process.env.DD_TRACE_WINDOWS_PIPE_NAME = traceWindowsPipeName;
-
-  // Configure dogstatsd pipe name
-  // Use DD_DOGSTATSD_WINDOWS_PIPE_NAME as base if set, otherwise use default
-  let dogstatsdBaseName = process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME || 'DD_DOGSTATSD';
-
-  // Truncate base name if needed to ensure base_guid fits within MAX_PIPE_NAME_LENGTH
-  if (dogstatsdBaseName.length > maxBaseLength) {
-    logger.warn(
-      `DD_DOGSTATSD base name is too long (${dogstatsdBaseName.length} chars). Truncating to ${maxBaseLength} chars to fit within 256 character limit with GUID.`
-    );
-    dogstatsdBaseName = dogstatsdBaseName.substring(0, maxBaseLength);
-  }
-
-  const dogstatsdWindowsPipeName = `${dogstatsdBaseName}_${guid}`;
-
-  // Alert if DD_DOGSTATSD_PIPE_NAME is different from DD_DOGSTATSD_WINDOWS_PIPE_NAME
-  if (process.env.DD_DOGSTATSD_PIPE_NAME && process.env.DD_DOGSTATSD_PIPE_NAME !== dogstatsdWindowsPipeName) {
-    logger.warn(
-      `DD_DOGSTATSD_PIPE_NAME (${process.env.DD_DOGSTATSD_PIPE_NAME}) differs from DD_DOGSTATSD_WINDOWS_PIPE_NAME (${dogstatsdWindowsPipeName}). Using DD_DOGSTATSD_WINDOWS_PIPE_NAME with GUID suffix.`
+      `DD_TRACE_AGENT_URL (${process.env.DD_TRACE_AGENT_URL}) differs from generated value (${agentUrl}). Using generated value with GUID suffix.`
     );
   }
 
-  process.env.DD_DOGSTATSD_PIPE_NAME = dogstatsdWindowsPipeName;
-  process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME = dogstatsdWindowsPipeName;
+  // Set DD_TRACE_AGENT_URL for both tracer and dogstatsd (DogStatsD uses it as metricsProxyUrl)
+  process.env.DD_TRACE_AGENT_URL = agentUrl;
+  // Set pipe names for rust binary
+  process.env.DD_TRACE_WINDOWS_PIPE_NAME = pipeName;
+  process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME = pipeName;
 
-  logger.debug(`Configured trace pipe name: ${traceWindowsPipeName}`);
-  logger.debug(`Configured dogstatsd pipe name: ${dogstatsdWindowsPipeName}`);
+  logger.debug(`Configured agent URL: ${agentUrl}`);
 }
 
 function start(logger: Logger = defaultLogger): void {
