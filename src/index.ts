@@ -68,9 +68,25 @@ function configurePipeNames(logger: Logger): void {
   // when running multiple Azure Functions in the same namespace
   const guid = randomUUID();
 
+  // Windows named pipes have the prefix \\.\pipe\ (9 characters)
+  // Maximum total length is 256, so pipe name can be at most 256 - 9 = 247
+  const PIPE_PREFIX_LENGTH = 9; // \\.\pipe\
+  const MAX_PIPE_NAME_LENGTH = 256 - PIPE_PREFIX_LENGTH; // 247
+  const guidLength = guid.length;
+  const maxBaseLength = MAX_PIPE_NAME_LENGTH - 1 - guidLength; // -1 for underscore
+
   // Configure tracer pipe name
-  // Use DD_TRACE_WINDOWS_PIPE_NAME as base if set, otherwise use default, then append GUID
-  const traceBaseName = process.env.DD_TRACE_WINDOWS_PIPE_NAME || 'DD_TRACE';
+  // Use DD_TRACE_WINDOWS_PIPE_NAME as base if set, otherwise use default
+  let traceBaseName = process.env.DD_TRACE_WINDOWS_PIPE_NAME || 'DD_TRACE';
+
+  // Truncate base name if needed to ensure base_guid fits within MAX_PIPE_NAME_LENGTH
+  if (traceBaseName.length > maxBaseLength) {
+    logger.warn(
+      `DD_TRACE base name is too long (${traceBaseName.length} chars). Truncating to ${maxBaseLength} chars to fit within 256 character limit with GUID.`
+    );
+    traceBaseName = traceBaseName.substring(0, maxBaseLength);
+  }
+
   const traceWindowsPipeName = `${traceBaseName}_${guid}`;
 
   // Alert if DD_TRACE_PIPE_NAME is different from DD_TRACE_WINDOWS_PIPE_NAME
@@ -80,14 +96,21 @@ function configurePipeNames(logger: Logger): void {
     );
   }
 
-  // Normalize tracer pipe name (ensure <= 256 characters)
-  const normalizedTracePipeName = traceWindowsPipeName.substring(0, 256);
-  process.env.DD_TRACE_PIPE_NAME = normalizedTracePipeName;
-  process.env.DD_TRACE_WINDOWS_PIPE_NAME = normalizedTracePipeName;
+  process.env.DD_TRACE_PIPE_NAME = traceWindowsPipeName;
+  process.env.DD_TRACE_WINDOWS_PIPE_NAME = traceWindowsPipeName;
 
   // Configure dogstatsd pipe name
-  // Use DD_DOGSTATSD_WINDOWS_PIPE_NAME as base if set, otherwise use default, then append GUID
-  const dogstatsdBaseName = process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME || 'DD_DOGSTATSD';
+  // Use DD_DOGSTATSD_WINDOWS_PIPE_NAME as base if set, otherwise use default
+  let dogstatsdBaseName = process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME || 'DD_DOGSTATSD';
+
+  // Truncate base name if needed to ensure base_guid fits within MAX_PIPE_NAME_LENGTH
+  if (dogstatsdBaseName.length > maxBaseLength) {
+    logger.warn(
+      `DD_DOGSTATSD base name is too long (${dogstatsdBaseName.length} chars). Truncating to ${maxBaseLength} chars to fit within 256 character limit with GUID.`
+    );
+    dogstatsdBaseName = dogstatsdBaseName.substring(0, maxBaseLength);
+  }
+
   const dogstatsdWindowsPipeName = `${dogstatsdBaseName}_${guid}`;
 
   // Alert if DD_DOGSTATSD_PIPE_NAME is different from DD_DOGSTATSD_WINDOWS_PIPE_NAME
@@ -97,13 +120,11 @@ function configurePipeNames(logger: Logger): void {
     );
   }
 
-  // Normalize dogstatsd pipe name (ensure <= 256 characters)
-  const normalizedDogstatsdPipeName = dogstatsdWindowsPipeName.substring(0, 256);
-  process.env.DD_DOGSTATSD_PIPE_NAME = normalizedDogstatsdPipeName;
-  process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME = normalizedDogstatsdPipeName;
+  process.env.DD_DOGSTATSD_PIPE_NAME = dogstatsdWindowsPipeName;
+  process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME = dogstatsdWindowsPipeName;
 
-  logger.debug(`Configured trace pipe name: ${normalizedTracePipeName}`);
-  logger.debug(`Configured dogstatsd pipe name: ${normalizedDogstatsdPipeName}`);
+  logger.debug(`Configured trace pipe name: ${traceWindowsPipeName}`);
+  logger.debug(`Configured dogstatsd pipe name: ${dogstatsdWindowsPipeName}`);
 }
 
 function start(logger: Logger = defaultLogger): void {

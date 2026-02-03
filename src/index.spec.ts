@@ -154,42 +154,116 @@ describe('configurePipeNames', () => {
     });
   });
 
-  describe('256 character limit enforcement', () => {
-    it('should truncate trace pipe name to 256 characters', () => {
-      // Create a base name that will exceed 256 chars with GUID
-      const longBaseName = 'a'.repeat(250);
+  describe('256 character limit enforcement (including \\\\.\\pipe\\ prefix)', () => {
+    // Windows pipe prefix \\.\pipe\ is 9 characters
+    // Maximum total is 256, so pipe name can be at most 247 characters
+    // Mock GUID 'test-guid-1234-5678' is 19 chars + 1 underscore = 20 chars
+    // So max base name length is 247 - 20 = 227 characters
+
+    it('should truncate trace base name only (keeping full GUID) when exceeding limit', () => {
+      // Create a base name that will exceed 247 chars with GUID
+      const longBaseName = 'a'.repeat(250); // Too long
       process.env.DD_TRACE_WINDOWS_PIPE_NAME = longBaseName;
 
       configurePipeNames(mockLogger);
 
-      const expectedName = `${longBaseName}_test-guid-1234-5678`;
-      expect(process.env.DD_TRACE_PIPE_NAME).toBe(expectedName.substring(0, 256));
-      expect(process.env.DD_TRACE_WINDOWS_PIPE_NAME).toBe(expectedName.substring(0, 256));
-      expect(process.env.DD_TRACE_PIPE_NAME?.length).toBeLessThanOrEqual(256);
+      // Base should be truncated to 227 chars, then GUID appended
+      const maxBaseLength = 247 - 20; // 227
+      const expectedName = `${'a'.repeat(maxBaseLength)}_test-guid-1234-5678`;
+
+      expect(process.env.DD_TRACE_PIPE_NAME).toBe(expectedName);
+      expect(process.env.DD_TRACE_WINDOWS_PIPE_NAME).toBe(expectedName);
+      expect(process.env.DD_TRACE_PIPE_NAME?.length).toBe(247);
+
+      // Verify GUID is intact
+      expect(process.env.DD_TRACE_PIPE_NAME).toContain('_test-guid-1234-5678');
+
+      // Should warn about truncation
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('DD_TRACE base name is too long')
+      );
     });
 
-    it('should truncate dogstatsd pipe name to 256 characters', () => {
+    it('should truncate dogstatsd base name only (keeping full GUID) when exceeding limit', () => {
       const longBaseName = 'b'.repeat(250);
       process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME = longBaseName;
 
       configurePipeNames(mockLogger);
 
-      const expectedName = `${longBaseName}_test-guid-1234-5678`;
-      expect(process.env.DD_DOGSTATSD_PIPE_NAME).toBe(expectedName.substring(0, 256));
-      expect(process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME).toBe(expectedName.substring(0, 256));
-      expect(process.env.DD_DOGSTATSD_PIPE_NAME?.length).toBeLessThanOrEqual(256);
+      const maxBaseLength = 247 - 20; // 227
+      const expectedName = `${'b'.repeat(maxBaseLength)}_test-guid-1234-5678`;
+
+      expect(process.env.DD_DOGSTATSD_PIPE_NAME).toBe(expectedName);
+      expect(process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME).toBe(expectedName);
+      expect(process.env.DD_DOGSTATSD_PIPE_NAME?.length).toBe(247);
+
+      // Verify GUID is intact
+      expect(process.env.DD_DOGSTATSD_PIPE_NAME).toContain('_test-guid-1234-5678');
+
+      // Should warn about truncation
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('DD_DOGSTATSD base name is too long')
+      );
     });
 
-    it('should handle pipe names that are exactly 256 characters', () => {
+    it('should handle pipe names that are exactly at the limit (247 chars)', () => {
       // Mock GUID 'test-guid-1234-5678' is 19 chars + 1 underscore = 20 chars
-      // So base name should be 256 - 20 = 236 chars to hit exactly 256
-      const baseName = 'c'.repeat(236);
+      // So base name should be 247 - 20 = 227 chars to hit exactly 247
+      const baseName = 'c'.repeat(227);
       process.env.DD_TRACE_WINDOWS_PIPE_NAME = baseName;
 
       configurePipeNames(mockLogger);
 
-      expect(process.env.DD_TRACE_PIPE_NAME?.length).toBe(256);
+      expect(process.env.DD_TRACE_PIPE_NAME?.length).toBe(247);
       expect(process.env.DD_TRACE_PIPE_NAME).toBe(`${baseName}_test-guid-1234-5678`);
+
+      // Should not warn about truncation since it fits
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('too long')
+      );
+    });
+
+    it('should never truncate the GUID', () => {
+      // Even with extremely long base name, GUID should remain intact
+      const veryLongBaseName = 'x'.repeat(500);
+      process.env.DD_TRACE_WINDOWS_PIPE_NAME = veryLongBaseName;
+
+      configurePipeNames(mockLogger);
+
+      // GUID should still be complete at the end
+      expect(process.env.DD_TRACE_PIPE_NAME).toMatch(/_test-guid-1234-5678$/);
+      expect(process.env.DD_TRACE_PIPE_NAME?.length).toBe(247);
+    });
+
+    it('should handle base name at exactly max length (227 chars)', () => {
+      const maxBaseName = 'd'.repeat(227); // Exactly max base length
+      process.env.DD_TRACE_WINDOWS_PIPE_NAME = maxBaseName;
+
+      configurePipeNames(mockLogger);
+
+      // Should not truncate or warn
+      expect(process.env.DD_TRACE_PIPE_NAME).toBe(`${maxBaseName}_test-guid-1234-5678`);
+      expect(process.env.DD_TRACE_PIPE_NAME?.length).toBe(247);
+
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('too long')
+      );
+    });
+
+    it('should warn when base name is one character over max (228 chars)', () => {
+      const tooLongBaseName = 'e'.repeat(228);
+      process.env.DD_TRACE_WINDOWS_PIPE_NAME = tooLongBaseName;
+
+      configurePipeNames(mockLogger);
+
+      // Should truncate to 227 and warn
+      const expectedName = `${'e'.repeat(227)}_test-guid-1234-5678`;
+      expect(process.env.DD_TRACE_PIPE_NAME).toBe(expectedName);
+      expect(process.env.DD_TRACE_PIPE_NAME?.length).toBe(247);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        `DD_TRACE base name is too long (228 chars). Truncating to 227 chars to fit within 256 character limit with GUID.`
+      );
     });
   });
 
@@ -214,10 +288,10 @@ describe('configurePipeNames', () => {
 
       expect(mockLogger.warn).toHaveBeenCalledTimes(2);
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('DD_TRACE_PIPE_NAME')
+        expect.stringContaining('DD_TRACE_PIPE_NAME (wrong_trace) differs')
       );
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('DD_DOGSTATSD_PIPE_NAME')
+        expect.stringContaining('DD_DOGSTATSD_PIPE_NAME (wrong_dogstatsd) differs')
       );
     });
 
@@ -231,6 +305,29 @@ describe('configurePipeNames', () => {
         'DD_TRACE_PIPE_NAME (conflicting_value) differs from DD_TRACE_WINDOWS_PIPE_NAME (custom_base_test-guid-1234-5678). Using DD_TRACE_WINDOWS_PIPE_NAME with GUID suffix.'
       );
       expect(process.env.DD_TRACE_PIPE_NAME).toBe('custom_base_test-guid-1234-5678');
+    });
+
+    it('should handle truncation and conflict warnings together', () => {
+      // Set a base name that needs truncation
+      const longBaseName = 'f'.repeat(250);
+      process.env.DD_TRACE_WINDOWS_PIPE_NAME = longBaseName;
+      // And a conflicting pipe name
+      process.env.DD_TRACE_PIPE_NAME = 'conflicting';
+
+      configurePipeNames(mockLogger);
+
+      // Should warn about both truncation and conflict
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('DD_TRACE base name is too long')
+      );
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('DD_TRACE_PIPE_NAME (conflicting) differs')
+      );
+
+      // Final name should have truncated base + full GUID
+      const maxBaseLength = 247 - 20; // 227
+      const expectedName = `${'f'.repeat(maxBaseLength)}_test-guid-1234-5678`;
+      expect(process.env.DD_TRACE_PIPE_NAME).toBe(expectedName);
     });
   });
 
