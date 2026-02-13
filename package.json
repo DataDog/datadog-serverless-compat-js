@@ -37,16 +37,16 @@
   },
   "homepage": "https://github.com/DataDog/datadog-serverless-compat-js#readme",
   "devDependencies": {
-    "@eslint/js": "^9.16.0",
-    "@jest/globals": "^30.0.5",
+    "@eslint/js": "^9.39.2",
+    "@jest/globals": "^30.2.0",
     "@types/jest": "^30.0.0",
-    "@types/node": "^24.3.0",
-    "eslint": "^9.16.0",
+    "@types/node": "^24.3.3",
+    "eslint": "^9.39.2",
     "globals": "^17.3.0",
-    "jest": "^30.0.5",
-    "rimraf": "^6.0.1",
-    "ts-jest": "^29.4.1",
+    "jest": "^30.2.0",
+    "rimraf": "^6.1.2",
+    "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.3"
   }
 }
