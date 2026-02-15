@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { randomUUID } from 'crypto';
 import { existsSync, mkdirSync, copyFileSync, chmodSync } from 'fs';
 import { tmpdir } from 'os';
 import { resolve, join, basename } from 'path';
@@ -62,6 +63,49 @@ function isAzureFlexWithoutDDAzureResourceGroup(): boolean {
   );
 }
 
+function configurePipeNames(logger: Logger): void {
+  // Generate a unique GUID for this function instance to avoid conflicts
+  // when running multiple Azure Functions in the same namespace
+  const guid = randomUUID();
+
+  // Windows pipe limit is 256 chars including \\.\pipe\ prefix (9 chars), leaving 247 for the name
+  // Pipe name format: {base}_{guid}, where guid is always 36 chars, leaving 210 chars for base
+  const MAX_BASE_LENGTH = 210;
+
+  // DogStatsD uses DD_TRACE_AGENT_URL as metricsProxyUrl, so there's only one pipe for the whole layer
+  // Priority: DD_TRACE_WINDOWS_PIPE_NAME > DD_DOGSTATSD_WINDOWS_PIPE_NAME > extract from DD_TRACE_AGENT_URL > default
+  let baseName = process.env.DD_TRACE_WINDOWS_PIPE_NAME
+    || process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME
+    || (process.env.DD_TRACE_AGENT_URL ? process.env.DD_TRACE_AGENT_URL.replace(/^unix:\\\\\.\\pipe\\/, '') : null)
+    || 'dd_compat_pipe';
+
+  // Truncate base name if needed to ensure base_guid fits within limit
+  if (baseName.length > MAX_BASE_LENGTH) {
+    logger.warn(
+      `Pipe base name is too long (${baseName.length} chars). Truncating to ${MAX_BASE_LENGTH} chars to fit within 256 character limit with GUID.`
+    );
+    baseName = baseName.substring(0, MAX_BASE_LENGTH);
+  }
+
+  const pipeName = `${baseName}_${guid}`;
+  const agentUrl = `unix:\\\\.\\pipe\\${pipeName}`;
+
+  // Alert if DD_TRACE_AGENT_URL is manually set and differs from generated value
+  if (process.env.DD_TRACE_AGENT_URL && process.env.DD_TRACE_AGENT_URL !== agentUrl) {
+    logger.warn(
+      `DD_TRACE_AGENT_URL (${process.env.DD_TRACE_AGENT_URL}) differs from generated value (${agentUrl}). Using generated value with GUID suffix.`
+    );
+  }
+
+  // Set DD_TRACE_AGENT_URL for both tracer and dogstatsd (DogStatsD uses it as metricsProxyUrl)
+  process.env.DD_TRACE_AGENT_URL = agentUrl;
+  // Set pipe names for rust binary
+  process.env.DD_TRACE_WINDOWS_PIPE_NAME = pipeName;
+  process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME = pipeName;
+
+  logger.debug(`Configured agent URL: ${agentUrl}`);
+}
+
 function start(logger: Logger = defaultLogger): void {
   const environment = getEnvironment();
   logger.debug(`Environment detected: ${environment}`);
@@ -100,6 +144,9 @@ function start(logger: Logger = defaultLogger): void {
 
   logger.debug(`Found package version ${packageVersion}`);
 
+  // Configure unique named pipes to avoid conflicts when running multiple functions
+  configurePipeNames(logger);
+
   try {
     const tempDir = join(tmpdir(), 'datadog');
     mkdirSync(tempDir, { recursive: true });
@@ -122,4 +169,4 @@ function start(logger: Logger = defaultLogger): void {
   }
 }
 
-export { start };
+export { start, configurePipeNames };
