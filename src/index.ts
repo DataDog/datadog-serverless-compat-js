@@ -1,13 +1,14 @@
 import { spawn } from 'child_process';
 import { existsSync, mkdirSync, copyFileSync, chmodSync } from 'fs';
 import { tmpdir } from 'os';
-import { resolve, join, basename } from 'path';
+import { resolve, join, basename, dirname } from 'path';
 import { logger, Logger } from './utils/log';
 import { LIB_VERSION as packageVersion } from './version';
 
 const defaultLogger = logger(__filename);
 
 enum CloudEnvironment {
+  AWS = 'AWS',
   AZURE_FUNCTION = 'Azure Function',
   GOOGLE_CLOUD_RUN_FUNCTION_1ST_GEN = 'Google Cloud Run Function 1st gen',
   GOOGLE_CLOUD_RUN_FUNCTION_2ND_GEN = 'Google Cloud Run Function 2nd gen',
@@ -15,6 +16,10 @@ enum CloudEnvironment {
 }
 
 function getEnvironment(): CloudEnvironment {
+  if (process.env.AWS_LAMBDA_INITIALIZATION_TYPE != undefined) {
+    return CloudEnvironment.AWS
+  }
+
   if (
     process.env.FUNCTIONS_EXTENSION_VERSION !== undefined &&
     process.env.FUNCTIONS_WORKER_RUNTIME !== undefined
@@ -39,20 +44,44 @@ function getEnvironment(): CloudEnvironment {
   return CloudEnvironment.UNKNOWN;
 }
 
-function getBinaryPath(): string {
-  if (process.env.DD_SERVERLESS_COMPAT_PATH !== undefined) {
-    return process.env.DD_SERVERLESS_COMPAT_PATH;
+let resolvedBinaryPath: string | undefined;
+
+function getBinaryPath(logger: Logger = defaultLogger): string {
+  if (resolvedBinaryPath !== undefined) {
+    return resolvedBinaryPath;
   }
 
-  const binaryPathOsFolder =
-    process.platform === 'win32'
-      ? resolve(__dirname, '..', 'bin', 'windows-amd64')
-      : resolve(__dirname, '..', 'bin', 'linux-amd64');
+  if (process.env.DD_SERVERLESS_COMPAT_PATH !== undefined) {
+    logger.debug(`Using DD_SERVERLESS_COMPAT_PATH: ${process.env.DD_SERVERLESS_COMPAT_PATH}`);
+    resolvedBinaryPath = process.env.DD_SERVERLESS_COMPAT_PATH;
+    return resolvedBinaryPath;
+  }
+
+  // npm/Node.js cpu convention: 'x64' or 'arm64'
+  const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+  logger.debug(`getBinaryPath - process.arch: ${process.arch}, selected arch: ${arch}`);
+
+  const osName = process.platform === 'win32' ? 'win32' : 'linux';
   const binaryExtension = process.platform === 'win32' ? '.exe' : '';
-  return join(
-    binaryPathOsFolder,
-    `datadog-serverless-compat${binaryExtension}`
-  );
+  const binaryFilename = `datadog-serverless-compat${binaryExtension}`;
+
+  // Primary: resolve binary from the installed optional platform-specific package
+  const pkgName = `@datadog/serverless-compat-${osName}-${arch}`;
+  try {
+    const pkgJsonPath = require.resolve(`${pkgName}/package.json`);
+    resolvedBinaryPath = join(dirname(pkgJsonPath), 'bin', binaryFilename);
+    logger.debug(`getBinaryPath - resolved from ${pkgName}: ${resolvedBinaryPath}`);
+    return resolvedBinaryPath;
+  } catch {
+    logger.debug(`getBinaryPath - ${pkgName} not installed, falling back to local bin directory`);
+  }
+
+  // Fallback: local bin directory (used during local development via download_binaries.sh)
+  const legacyArch = process.arch === 'arm64' ? 'arm64' : 'amd64';
+  const legacyOsPrefix = process.platform === 'win32' ? 'windows' : 'linux';
+  resolvedBinaryPath = join(resolve(__dirname, '..', 'bin', `${legacyOsPrefix}-${legacyArch}`), binaryFilename);
+  logger.debug(`getBinaryPath - fallback path: ${resolvedBinaryPath}`);
+  return resolvedBinaryPath;
 }
 
 function isAzureFlexWithoutDDAzureResourceGroup(): boolean {
@@ -74,10 +103,18 @@ function start(logger: Logger = defaultLogger): void {
   }
 
   logger.debug(`Platform detected: ${process.platform}`);
+  logger.debug(`Architecture detected: ${process.arch}`);
 
   if (process.platform !== 'win32' && process.platform !== 'linux') {
     logger.error(
       `Platform ${process.platform} detected, the Datadog Serverless Compatibility Layer is only supported on Windows and Linux`
+    );
+    return;
+  }
+
+  if (process.arch !== 'arm64' && process.arch !== 'x64') {
+    logger.error(
+      `Architecture ${process.arch} detected, the Datadog Serverless Compatibility Layer only supports x64 (AMD64) and arm64 (ARM64) architectures`
     );
     return;
   }
@@ -89,7 +126,8 @@ function start(logger: Logger = defaultLogger): void {
     return;
   }
 
-  const binaryPath = getBinaryPath();
+  const binaryPath = getBinaryPath(logger);
+  logger.debug(`Selected binary path: ${binaryPath}`);
 
   if (!existsSync(binaryPath)) {
     logger.error(
@@ -114,7 +152,25 @@ function start(logger: Logger = defaultLogger): void {
       ...process.env,
       DD_SERVERLESS_COMPAT_VERSION: packageVersion,
     };
-    spawn(executableFilePath, { stdio: 'inherit', env });
+    const child = spawn(executableFilePath, { stdio: 'inherit', env });
+
+    child.on('error', (err) => {
+      logger.error(
+        `Failed to spawn Serverless Compatibility Layer process: ${err.message}`
+      );
+    });
+
+    child.on('exit', (code, signal) => {
+      if (code !== null && code !== 0) {
+        logger.error(
+          `Serverless Compatibility Layer process exited with code ${code}`
+        );
+      } else if (signal !== null) {
+        logger.error(
+          `Serverless Compatibility Layer process killed by signal ${signal}`
+        );
+      }
+    });
   } catch (err) {
     logger.error(
       `An unexpected error occurred while spawning Serverless Compatibility Layer process: ${err}`
