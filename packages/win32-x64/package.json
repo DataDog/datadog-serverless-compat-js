@@ -1,0 +1,14 @@
+{
+  "name": "@datadog/serverless-compat-win32-x64",
+  "version": "0.0.0",
+  "description": "Windows x64 binary for @datadog/serverless-compat",
+  "os": ["win32"],
+  "cpu": ["x64"],
+  "files": [
+    "bin/**/*"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "Apache-2.0"
+}
