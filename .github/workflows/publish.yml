@@ -67,6 +67,12 @@ jobs:
       - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: "18.x"
+      - name: Copy binaries into platform packages
+        run: |
+          mkdir -p packages/linux-x64/bin packages/linux-arm64/bin packages/win32-x64/bin
+          cp bin/linux-amd64/datadog-serverless-compat packages/linux-x64/bin/
+          cp bin/linux-arm64/datadog-serverless-compat packages/linux-arm64/bin/
+          cp bin/windows-amd64/datadog-serverless-compat.exe packages/win32-x64/bin/
       - run: yarn version ${{ env.PACKAGE_VERSION }}
       - run: yarn
       - run: yarn prebuild
@@ -92,6 +98,36 @@ jobs:
       - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: "18.x"
+      - name: Copy binaries into platform packages
+        run: |
+          mkdir -p packages/linux-x64/bin packages/linux-arm64/bin packages/win32-x64/bin
+          cp bin/linux-amd64/datadog-serverless-compat packages/linux-x64/bin/
+          cp bin/linux-arm64/datadog-serverless-compat packages/linux-arm64/bin/
+          cp bin/windows-amd64/datadog-serverless-compat.exe packages/win32-x64/bin/
+      - name: Set platform package versions and update optionalDependencies
+        run: |
+          for pkg in linux-x64 linux-arm64 win32-x64; do
+            node -e "
+              const fs = require('fs');
+              const p = JSON.parse(fs.readFileSync('packages/${pkg}/package.json', 'utf8'));
+              p.version = process.env.PACKAGE_VERSION;
+              fs.writeFileSync('packages/${pkg}/package.json', JSON.stringify(p, null, 2) + '\n');
+            "
+          done
+          node -e "
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            const v = process.env.PACKAGE_VERSION;
+            p.optionalDependencies['@datadog/serverless-compat-linux-x64'] = v;
+            p.optionalDependencies['@datadog/serverless-compat-linux-arm64'] = v;
+            p.optionalDependencies['@datadog/serverless-compat-win32-x64'] = v;
+            fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+          "
+      - name: Publish platform packages
+        run: |
+          cd packages/linux-x64 && yarn npm publish && cd ../..
+          cd packages/linux-arm64 && yarn npm publish && cd ../..
+          cd packages/win32-x64 && yarn npm publish && cd ../..
       - run: yarn version ${{ env.PACKAGE_VERSION }}
       - run: yarn
       - run: yarn prebuild
