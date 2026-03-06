@@ -44,15 +44,19 @@ function getBinaryPath(): string {
     return process.env.DD_SERVERLESS_COMPAT_PATH;
   }
 
-  const binaryPathOsFolder =
-    process.platform === 'win32'
-      ? resolve(__dirname, '..', 'bin', 'windows-amd64')
-      : resolve(__dirname, '..', 'bin', 'linux-amd64');
   const binaryExtension = process.platform === 'win32' ? '.exe' : '';
-  return join(
-    binaryPathOsFolder,
-    `datadog-serverless-compat${binaryExtension}`
-  );
+  const binaryFilename = `datadog-serverless-compat${binaryExtension}`;
+
+  // Primary: flat bin/ populated by postinstall script
+  const postinstallPath = resolve(__dirname, '..', 'bin', binaryFilename);
+  if (existsSync(postinstallPath)) {
+    return postinstallPath;
+  }
+
+  // Fallback: nested bin/{os}-{arch}/ for local development via download_binaries.sh
+  const legacyArch = process.arch === 'arm64' ? 'arm64' : 'amd64';
+  const legacyOsPrefix = process.platform === 'win32' ? 'windows' : 'linux';
+  return join(resolve(__dirname, '..', 'bin', `${legacyOsPrefix}-${legacyArch}`), binaryFilename);
 }
 
 function isAzureFlexWithoutDDAzureResourceGroup(): boolean {
@@ -93,7 +97,8 @@ function start(logger: Logger = defaultLogger): void {
 
   if (!existsSync(binaryPath)) {
     logger.error(
-      `Serverless Compatibility Layer did not start, could not find binary at path ${binaryPath}`
+      `Serverless Compatibility Layer did not start, could not find binary at path ${binaryPath}. ` +
+      `If you installed with --ignore-scripts, run: yarn ensure-binary (or: node node_modules/@datadog/serverless-compat/scripts/postinstall.js)`
     );
     return;
   }
