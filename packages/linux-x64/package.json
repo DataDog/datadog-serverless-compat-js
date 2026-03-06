@@ -1,0 +1,17 @@
+{
+  "name": "@datadog/serverless-compat-linux-x64",
+  "version": "0.0.0",
+  "description": "Linux x64 binary for @datadog/serverless-compat",
+  "os": ["linux"],
+  "cpu": ["x64"],
+  "files": [
+    "bin/**/*"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "executableFiles": [
+      "./bin/datadog-serverless-compat"
+    ]
+  },
+  "license": "Apache-2.0"
+}
