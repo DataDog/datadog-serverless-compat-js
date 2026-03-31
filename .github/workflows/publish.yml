@@ -61,12 +61,73 @@ jobs:
           name: package
           path: package.tgz
 
+  # Integration tests: simulate user experience on each native platform.
+  # npm installs the main package and auto-resolves the platform binary via
+  # optionalDependencies — exactly as a real user would. All legs are required
+  # and must pass before publish runs.
+  test:
+    needs: [build]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            node-arch: x64
+            required: true
+          - os: ubuntu-24.04-arm
+            node-arch: arm64
+            required: true
+          - os: macos-14              # pinned oldest supported arm64 runner for max compatibility
+            node-arch: arm64
+            required: true
+          - os: windows-latest
+            node-arch: x64
+            required: true
+          - os: windows-latest
+            node-arch: x86            # setup-node 'x86' → process.arch === 'ia32'
+            required: true
+    runs-on: ${{ matrix.os }}
+    name: test / ${{ matrix.os }} (${{ matrix.node-arch }})
+    continue-on-error: ${{ !matrix.required }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: "18.x"
+          architecture: ${{ matrix.node-arch }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: package
+      # Use $RUNNER_TEMP (not /tmp) — reliable across Linux, macOS, and Windows Git Bash.
+      - name: Create test app
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/test-app"
+          echo '{"name":"test-app","version":"1.0.0","private":true}' > "$RUNNER_TEMP/test-app/package.json"
+      # npm reads optionalDependencies from the installed package and pulls the matching
+      # platform binary from the registry — true user-experience simulation.
+      # Use $GITHUB_WORKSPACE (not ${{ github.workspace }}) in bash steps — the Actions
+      # context variable uses backslashes on Windows, breaking forward-slash paths.
+      - name: Install main package
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/test-app"
+          npm install "$GITHUB_WORKSPACE/package.tgz"
+      - name: Run binary integration test
+        shell: bash
+        run: |
+          # Copy script into test-app so require() resolves packages from
+          # test-app/node_modules, not from the workspace checkout.
+          cp "$GITHUB_WORKSPACE/test/integration/test-binary.js" "$RUNNER_TEMP/test-app/test-binary.js"
+          cd "$RUNNER_TEMP/test-app"
+          node test-binary.js
+
   publish:
     if: ${{ github.event.inputs.publish-package == 'Build and Publish' }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write
-    needs: [build]
+    needs: [test]
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
