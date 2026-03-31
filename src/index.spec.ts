@@ -110,7 +110,7 @@ describe('start()', () => {
   });
 
   it('does not start on unsupported platforms', () => {
-    setPlatform('darwin');
+    setPlatform('freebsd');
     jest.resetModules();
     start = require('./index').start;
     process.env.DD_SERVERLESS_COMPAT_PATH = '/some/path/to/binary';
@@ -118,7 +118,7 @@ describe('start()', () => {
     start(mockLogger);
 
     expect(mockLogger.error).toHaveBeenCalledWith(
-      expect.stringContaining('Platform darwin detected')
+      expect.stringContaining('Platform/architecture freebsd/')
     );
     expect(spawnMock).not.toHaveBeenCalled();
   });
@@ -132,9 +132,75 @@ describe('start()', () => {
     start(mockLogger);
 
     expect(mockLogger.error).toHaveBeenCalledWith(
-      expect.stringContaining('Architecture s390x detected')
+      expect.stringContaining('/s390x is not supported')
     );
     expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it('does not start on macOS x64 (Intel)', () => {
+    setPlatform('darwin');
+    setArch('x64');
+    jest.resetModules();
+    start = require('./index').start;
+    process.env.DD_SERVERLESS_COMPAT_PATH = '/some/path/to/binary';
+
+    start(mockLogger);
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Platform/architecture darwin/x64 is not supported')
+    );
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it('does not start on Linux ia32 (no binary available)', () => {
+    setPlatform('linux');
+    setArch('ia32');
+    jest.resetModules();
+    start = require('./index').start;
+    process.env.DD_SERVERLESS_COMPAT_PATH = '/some/path/to/binary';
+
+    start(mockLogger);
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Platform/architecture linux/ia32 is not supported')
+    );
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it('spawns the binary on macOS arm64 when DD_SERVERLESS_COMPAT_PATH points to an existing file', () => {
+    setPlatform('darwin');
+    setArch('arm64');
+    jest.resetModules();
+    start = require('./index').start;
+    process.env.DD_SERVERLESS_COMPAT_PATH = '/some/path/to/binary';
+
+    const fs = require('fs');
+    (fs.existsSync as jest.Mock).mockReturnValue(true);
+    const cp = require('child_process');
+    (cp.spawn as jest.Mock).mockReturnValue(undefined);
+
+    start(mockLogger);
+
+    expect(cp.spawn).toHaveBeenCalledTimes(1);
+    expect(mockLogger.error).not.toHaveBeenCalled();
+  });
+
+  it('spawns the binary on Windows ia32 when DD_SERVERLESS_COMPAT_PATH points to an existing file', () => {
+    setPlatform('win32');
+    setArch('ia32');
+    jest.resetModules();
+    start = require('./index').start;
+    process.env.DD_SERVERLESS_COMPAT_PATH = '/some/path/to/binary';
+
+    const fs = require('fs');
+    (fs.existsSync as jest.Mock).mockReturnValue(true);
+    const cp = require('child_process');
+    (cp.spawn as jest.Mock).mockReturnValue(undefined);
+
+    start(mockLogger);
+
+    expect(cp.spawn).toHaveBeenCalledTimes(1);
+    expect(mockLogger.error).not.toHaveBeenCalled();
   });
 
   it('does not start Azure Flex when DD_AZURE_RESOURCE_GROUP is missing', () => {

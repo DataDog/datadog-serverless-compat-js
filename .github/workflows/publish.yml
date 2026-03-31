@@ -49,9 +49,9 @@ jobs:
       - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: "18.x"
-      - run: yarn version $PACKAGE_VERSION
       - name: Update optionalDependencies to match package version
-        run: yarn update-optional-deps "$PACKAGE_VERSION"
+        run: node scripts/update-optional-deps.js "$PACKAGE_VERSION"
+      - run: yarn version $PACKAGE_VERSION
       - run: yarn
       - run: yarn prebuild
       - run: yarn build
