@@ -4,7 +4,7 @@
 // Integration test: verifies platform binary package resolution and crash-free startup.
 // Runs natively on the target OS — no Docker required.
 
-const { existsSync } = require('fs');
+const { existsSync, chmodSync } = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
@@ -41,6 +41,14 @@ console.log(`PASS: binary exists at ${binaryPath}`);
 
 // ── 3. Spawn the binary directly — check it does not crash ──────────────────
 console.log('\n=== Test: binary crash-free startup ===');
+
+// Ensure the binary is executable. npm is not guaranteed to preserve the execute
+// bit when installing from the registry, and start() always copies+chmods before
+// spawning for the same reason. Mirror that here so we test binary behavior, not
+// npm's file-mode handling.
+if (process.platform !== 'win32') {
+  chmodSync(binaryPath, 0o755);
+}
 
 // spawnSync with a short timeout: the binary is a long-running daemon so it won't
 // exit on its own. We give it 2s and then the timeout kills it.
