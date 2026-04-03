@@ -57,11 +57,11 @@ function getBinaryPath(logger: Logger = defaultLogger): string | undefined {
     return resolvedBinaryPath;
   }
 
-  // npm/Node.js cpu convention: 'x64' or 'arm64'
-  const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+  // npm/Node.js cpu convention: 'x64', 'arm64', or 'ia32'
+  const arch = process.arch === 'arm64' ? 'arm64' : process.arch === 'ia32' ? 'ia32' : 'x64';
   logger.debug(`getBinaryPath - process.arch: ${process.arch}, selected arch: ${arch}`);
 
-  const osName = process.platform === 'win32' ? 'win32' : 'linux';
+  const osName = process.platform === 'win32' ? 'win32' : process.platform === 'darwin' ? 'darwin' : 'linux';
   const binaryExtension = process.platform === 'win32' ? '.exe' : '';
   const binaryFilename = `datadog-serverless-compat${binaryExtension}`;
 
@@ -100,16 +100,17 @@ function start(logger: Logger = defaultLogger): void {
   logger.debug(`Platform detected: ${process.platform}`);
   logger.debug(`Architecture detected: ${process.arch}`);
 
-  if (process.platform !== 'win32' && process.platform !== 'linux') {
-    logger.error(
-      `Platform ${process.platform} detected, the Datadog Serverless Compatibility Layer is only supported on Windows and Linux`
-    );
-    return;
-  }
+  const supportedPlatformArchPairs = new Set([
+    'linux-x64',
+    'linux-arm64',
+    'win32-x64',
+    'win32-ia32',
+    'darwin-arm64',
+  ]);
 
-  if (process.arch !== 'arm64' && process.arch !== 'x64') {
+  if (!supportedPlatformArchPairs.has(`${process.platform}-${process.arch}`)) {
     logger.error(
-      `Architecture ${process.arch} detected, the Datadog Serverless Compatibility Layer only supports x64 (AMD64) and arm64 (ARM64) architectures`
+      `Platform/architecture ${process.platform}/${process.arch} is not supported by the Datadog Serverless Compatibility Layer`
     );
     return;
   }
