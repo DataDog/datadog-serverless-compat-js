@@ -34,7 +34,7 @@ export function assignUniquePipeNames(logger: Logger): void
 - Emits one `logger.warn` per pre-existing user value that is being overridden.
 - Returns nothing. The side effect on `process.env` is the contract.
 
-Call site: `src/index.ts` `start()` invokes `assignUniquePipeNames(logger)` after the Azure Flex guard (`src/index.ts:118-123`) and before the binary-resolution block, so the subsequent `env` clone (`src/index.ts:150-153`) picks up the mutations and the child inherits them.
+Call site: `src/index.ts` `start()` invokes `assignUniquePipeNames(logger)` as the first statement inside its existing `try` block (`src/index.ts:125`), before `getBinaryPath`. The subsequent `env` clone (`src/index.ts:150-153`) picks up the mutations and the child inherits them. Placing the call inside the `try` block means any thrown error is caught by `start()`'s existing handler, logged, and the binary is not spawned.
 
 Dependency: Node built-in `crypto.randomUUID()` (Node ≥ 14.17). No new packages.
 
@@ -87,39 +87,43 @@ For each pre-existing value, emit exactly one warning:
 
 Zero pre-existing values → zero warnings. All four pre-existing → four warnings.
 
-A debug-level line also records the final four names for troubleshooting.
+A single debug-level line also records the final values of all four variables for troubleshooting.
 
-### Length defense
+### Length enforcement
 
-Even with the fixed format, assert both names fit within 256 chars as a safety net for future format changes:
+Enforce the 256-char Windows limit by throwing if either generated name exceeds it:
 
 ```ts
 if (tracePipeName.length > 256 || dogstatsdPipeName.length > 256) {
-  logger.error(`Generated pipe name exceeds 256 chars; skipping unique-pipe override`);
-  return;
+  throw new Error(`Generated pipe name exceeds 256 chars (trace=${tracePipeName.length}, dogstatsd=${dogstatsdPipeName.length})`);
 }
 ```
 
-If the guard fires, the function returns without mutation and `start()` proceeds with whatever the user had set.
+The fixed format (44 / 48 chars) makes this mathematically impossible to hit in practice — the check is a guard against future format changes that accidentally violate the constraint. Any violation is a programming bug; fail loudly.
+
+The throw propagates to `start()`'s existing `try/catch` (`src/index.ts:157-161`), which logs the error and aborts the spawn. The binary does not start rather than start with a potentially-colliding pipe name.
 
 ### Failure isolation
 
-Wrap generation and assignment in `try/catch`. If `randomUUID` or anything else throws, log an error and return. `start()` continues normally — worst case we fall back to today's collision-prone behavior rather than crash.
+`assignUniquePipeNames` does not wrap its own `try/catch`. Any error (length violation, `randomUUID` throwing, etc.) propagates to `start()`'s existing `try/catch` block. The behavior on any error is: log, do not spawn the binary. This is stricter than the previous design's "log and continue" because we have no expected failure modes — anything that goes wrong here is a bug, and shipping no telemetry is preferable to shipping colliding telemetry.
 
 ## Sequence
 
 1. `start()` runs environment and platform checks.
 2. `start()` runs the Azure Flex consumption guard.
-3. `start()` calls `assignUniquePipeNames(logger)`.
+3. `start()` enters its `try` block.
+4. `start()` calls `assignUniquePipeNames(logger)`:
    - Snapshot pre-existing values of the four env vars.
    - Generate two UUIDs.
-   - Assert name length ≤ 256.
+   - Build trace and dogstatsd names; throw if either exceeds 256 chars.
    - Write the four env vars.
    - Emit one warning per pre-existing var.
    - Emit one debug line with the final values.
-4. `start()` resolves the binary path.
-5. `start()` clones `process.env` into the spawn env (now includes the four overrides).
-6. `start()` spawns the child binary.
+5. `start()` resolves the binary path.
+6. `start()` clones `process.env` into the spawn env (now includes the four overrides).
+7. `start()` spawns the child binary.
+
+If step 4 throws, `start()`'s `catch` logs the error and steps 5-7 do not execute.
 
 ## Testing
 
@@ -132,11 +136,12 @@ Wrap generation and assignment in `try/catch`. If `randomUUID` or anything else 
 5. Warning matrix, parametrized over each of the four vars being pre-set: exactly one `logger.warn` per pre-set var, carrying both prior and new values. Zero pre-set → zero warnings. All four pre-set → four warnings.
 6. Empty and whitespace-only pre-existing values are treated as unset; no warning.
 7. When a prior value was set, the final env value is the new UUID, never the prior.
-8. Generated names are ≤ 256 chars.
+8. Generated names are ≤ 256 chars (assert on the produced values).
+9. A forced length violation (e.g., by stubbing `randomUUID` to return an oversized string via a test-only seam, or by unit-testing an extracted length-check helper) throws an `Error` whose message names both lengths and does not mutate `process.env`.
 
 ### Integration test — `src/index.spec.ts`
 
-9. `start()` spawns the child with an `env` object containing all four `DD_*_PIPE_NAME` vars matching the expected format, and the values were assigned before the spawn call.
+10. `start()` spawns the child with an `env` object containing all four `DD_*_PIPE_NAME` vars matching the expected format, and the values were assigned before the spawn call.
 
 Env isolation follows the existing pattern (`baseEnv` snapshot in `beforeEach`, restore in `afterEach`).
 
