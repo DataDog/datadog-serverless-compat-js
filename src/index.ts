@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { spawn } from 'child_process';
 import { existsSync, mkdirSync, copyFileSync, chmodSync } from 'fs';
 import { tmpdir } from 'os';
@@ -147,6 +148,12 @@ function start(logger: Logger = defaultLogger): void {
     chmodSync(executableFilePath, 0o744);
     logger.debug(`Spawning process from binary at path ${executableFilePath}`);
 
+
+    if (process.platform === 'win32') {
+      const pipeName = `dd-trace-${randomUUID()}`;
+      process.env.DD_APM_WINDOWS_PIPE_NAME = pipeName;
+      process.env.DD_TRACE_AGENT_URL = `unix://./pipe/${pipeName}`;
+    }
     const env = {
       ...process.env,
       DD_SERVERLESS_COMPAT_VERSION: packageVersion,
