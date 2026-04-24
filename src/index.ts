@@ -149,7 +149,11 @@ function start(logger: Logger = defaultLogger): void {
     logger.debug(`Spawning process from binary at path ${executableFilePath}`);
 
 
-    if (process.platform === 'win32') {
+    if (
+      process.platform === 'win32' &&
+      !process.env.DD_APM_WINDOWS_PIPE_NAME &&
+      !process.env.DD_TRACE_AGENT_URL
+    ) {
       const pipeName = `dd-trace-${randomUUID()}`;
       process.env.DD_APM_WINDOWS_PIPE_NAME = pipeName;
       process.env.DD_TRACE_AGENT_URL = `unix://./pipe/${pipeName}`;
