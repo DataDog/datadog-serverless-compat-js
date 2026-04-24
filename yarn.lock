@@ -400,10 +400,50 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@datadog/serverless-compat-darwin-arm64@npm:*":
+  version: 0.22.3
+  resolution: "@datadog/serverless-compat-darwin-arm64@npm:0.22.3"
+  conditions: os=darwin & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@datadog/serverless-compat-linux-arm64@npm:*":
+  version: 0.22.3
+  resolution: "@datadog/serverless-compat-linux-arm64@npm:0.22.3"
+  conditions: os=linux & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@datadog/serverless-compat-linux-x64@npm:*":
+  version: 0.22.3
+  resolution: "@datadog/serverless-compat-linux-x64@npm:0.22.3"
+  conditions: os=linux & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@datadog/serverless-compat-win32-ia32@npm:*":
+  version: 0.22.3
+  resolution: "@datadog/serverless-compat-win32-ia32@npm:0.22.3"
+  conditions: os=win32 & cpu=ia32
+  languageName: node
+  linkType: hard
+
+"@datadog/serverless-compat-win32-x64@npm:*":
+  version: 0.22.3
+  resolution: "@datadog/serverless-compat-win32-x64@npm:0.22.3"
+  conditions: os=win32 & cpu=x64
+  languageName: node
+  linkType: hard
+
 "@datadog/serverless-compat@workspace:.":
   version: 0.0.0-use.local
   resolution: "@datadog/serverless-compat@workspace:."
   dependencies:
+    "@datadog/serverless-compat-darwin-arm64": "npm:*"
+    "@datadog/serverless-compat-linux-arm64": "npm:*"
+    "@datadog/serverless-compat-linux-x64": "npm:*"
+    "@datadog/serverless-compat-win32-ia32": "npm:*"
+    "@datadog/serverless-compat-win32-x64": "npm:*"
     "@eslint/js": "npm:^9.39.2"
     "@jest/globals": "npm:^30.2.0"
     "@types/jest": "npm:^30.0.0"
@@ -415,6 +455,17 @@ __metadata:
     ts-jest: "npm:^29.4.6"
     ts-node: "npm:^10.9.2"
     typescript: "npm:^5.9.3"
+  dependenciesMeta:
+    "@datadog/serverless-compat-darwin-arm64":
+      optional: true
+    "@datadog/serverless-compat-linux-arm64":
+      optional: true
+    "@datadog/serverless-compat-linux-x64":
+      optional: true
+    "@datadog/serverless-compat-win32-ia32":
+      optional: true
+    "@datadog/serverless-compat-win32-x64":
+      optional: true
   languageName: unknown
   linkType: soft
 
