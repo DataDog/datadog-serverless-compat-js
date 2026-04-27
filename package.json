@@ -30,9 +30,7 @@
   "optionalDependencies": {
     "@datadog/serverless-compat-linux-x64": "0.0.0",
     "@datadog/serverless-compat-linux-arm64": "0.0.0",
-    "@datadog/serverless-compat-win32-x64": "0.0.0",
-    "@datadog/serverless-compat-win32-ia32": "0.0.0",
-    "@datadog/serverless-compat-darwin-arm64": "0.0.0"
+    "@datadog/serverless-compat-win32-x64": "0.0.0"
   },
   "publishConfig": {
     "access": "public"
