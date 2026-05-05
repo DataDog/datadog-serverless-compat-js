@@ -206,15 +206,9 @@ describe('start()', () => {
   describe('Windows named-pipe env configuration', () => {
     function startOnWindows() {
       setPlatform('win32');
-      setArch('x64');
-      jest.resetModules();
-      const fs = require('fs');
-      (fs.existsSync as jest.Mock).mockReturnValue(true);
-      const cp = require('child_process');
-      (cp.spawn as jest.Mock).mockReturnValue(undefined);
       process.env.DD_SERVERLESS_COMPAT_PATH = '/some/path/to/binary';
-      const { start: startWin } = require('./index');
-      startWin(mockLogger);
+      existsSyncMock.mockReturnValue(true);
+      start(mockLogger);
     }
 
     it('generates both env vars when neither is set', () => {
