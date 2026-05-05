@@ -80,6 +80,32 @@ function getBinaryPath(logger: Logger = defaultLogger): string | undefined {
   return undefined;
 }
 
+function configureWindowsPipeEnv(): void {
+  const pipeName = process.env.DD_APM_WINDOWS_PIPE_NAME;
+  const traceAgentUrl = process.env.DD_TRACE_AGENT_URL;
+
+  if (pipeName && traceAgentUrl) {
+    return;
+  }
+
+  if (pipeName) {
+    process.env.DD_TRACE_AGENT_URL = `unix://./pipe/${pipeName}`;
+    return;
+  }
+
+  if (traceAgentUrl) {
+    const match = traceAgentUrl.match(/\/pipe\/(.+?)\/?$/);
+    if (match) {
+      process.env.DD_APM_WINDOWS_PIPE_NAME = match[1];
+    }
+    return;
+  }
+
+  const generated = `dd-trace-${randomUUID()}`;
+  process.env.DD_APM_WINDOWS_PIPE_NAME = generated;
+  process.env.DD_TRACE_AGENT_URL = `unix://./pipe/${generated}`;
+}
+
 function isAzureFlexWithoutDDAzureResourceGroup(): boolean {
   return (
     process.env.WEBSITE_SKU === "FlexConsumption" &&
@@ -149,14 +175,8 @@ function start(logger: Logger = defaultLogger): void {
     logger.debug(`Spawning process from binary at path ${executableFilePath}`);
 
 
-    if (
-      process.platform === 'win32' &&
-      !process.env.DD_APM_WINDOWS_PIPE_NAME &&
-      !process.env.DD_TRACE_AGENT_URL
-    ) {
-      const pipeName = `dd-trace-${randomUUID()}`;
-      process.env.DD_APM_WINDOWS_PIPE_NAME = pipeName;
-      process.env.DD_TRACE_AGENT_URL = `unix://./pipe/${pipeName}`;
+    if (process.platform === 'win32') {
+      configureWindowsPipeEnv();
     }
     const env = {
       ...process.env,

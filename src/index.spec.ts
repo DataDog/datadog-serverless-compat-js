@@ -203,6 +203,73 @@ describe('start()', () => {
     expect(mockLogger.error).not.toHaveBeenCalled();
   });
 
+  describe('Windows named-pipe env configuration', () => {
+    function startOnWindows() {
+      setPlatform('win32');
+      setArch('x64');
+      jest.resetModules();
+      const fs = require('fs');
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      const cp = require('child_process');
+      (cp.spawn as jest.Mock).mockReturnValue(undefined);
+      process.env.DD_SERVERLESS_COMPAT_PATH = '/some/path/to/binary';
+      const { start: startWin } = require('./index');
+      startWin(mockLogger);
+    }
+
+    it('generates both env vars when neither is set', () => {
+      delete process.env.DD_APM_WINDOWS_PIPE_NAME;
+      delete process.env.DD_TRACE_AGENT_URL;
+
+      startOnWindows();
+
+      expect(process.env.DD_APM_WINDOWS_PIPE_NAME).toMatch(/^dd-trace-/);
+      expect(process.env.DD_TRACE_AGENT_URL).toBe(
+        `unix://./pipe/${process.env.DD_APM_WINDOWS_PIPE_NAME}`
+      );
+    });
+
+    it('derives DD_TRACE_AGENT_URL when only DD_APM_WINDOWS_PIPE_NAME is set', () => {
+      process.env.DD_APM_WINDOWS_PIPE_NAME = 'mypipe';
+      delete process.env.DD_TRACE_AGENT_URL;
+
+      startOnWindows();
+
+      expect(process.env.DD_APM_WINDOWS_PIPE_NAME).toBe('mypipe');
+      expect(process.env.DD_TRACE_AGENT_URL).toBe('unix://./pipe/mypipe');
+    });
+
+    it('derives DD_APM_WINDOWS_PIPE_NAME when only DD_TRACE_AGENT_URL is a unix pipe URL', () => {
+      delete process.env.DD_APM_WINDOWS_PIPE_NAME;
+      process.env.DD_TRACE_AGENT_URL = 'unix://./pipe/mypipe';
+
+      startOnWindows();
+
+      expect(process.env.DD_APM_WINDOWS_PIPE_NAME).toBe('mypipe');
+      expect(process.env.DD_TRACE_AGENT_URL).toBe('unix://./pipe/mypipe');
+    });
+
+    it('leaves DD_APM_WINDOWS_PIPE_NAME unset when DD_TRACE_AGENT_URL is an HTTP URL', () => {
+      delete process.env.DD_APM_WINDOWS_PIPE_NAME;
+      process.env.DD_TRACE_AGENT_URL = 'http://localhost:8126';
+
+      startOnWindows();
+
+      expect(process.env.DD_APM_WINDOWS_PIPE_NAME).toBeUndefined();
+      expect(process.env.DD_TRACE_AGENT_URL).toBe('http://localhost:8126');
+    });
+
+    it('leaves both env vars untouched when both are already set', () => {
+      process.env.DD_APM_WINDOWS_PIPE_NAME = 'pipeA';
+      process.env.DD_TRACE_AGENT_URL = 'unix://./pipe/pipeB';
+
+      startOnWindows();
+
+      expect(process.env.DD_APM_WINDOWS_PIPE_NAME).toBe('pipeA');
+      expect(process.env.DD_TRACE_AGENT_URL).toBe('unix://./pipe/pipeB');
+    });
+  });
+
   it('does not start Azure Flex when DD_AZURE_RESOURCE_GROUP is missing', () => {
     process.env.WEBSITE_SKU = 'FlexConsumption';
     process.env.DD_SERVERLESS_COMPAT_PATH = '/some/path/to/binary';
