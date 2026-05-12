@@ -8,9 +8,7 @@
     "build": "tsc",
     "clean": "rimraf dist",
     "lint": "node scripts/check_licenses.js && yarn run eslint . && yarn npm audit",
-    "pack-local": "yarn build && yarn pack",
-    "prebuild": "node scripts/generate-version.js",
-    "update-optional-deps": "node scripts/update-optional-deps.js",
+    "prebuild": "node -p \"'export const LIB_VERSION = ' + JSON.stringify(require('./package.json').version) + ';'\" > src/version.ts",
     "test": "jest"
   },
   "repository": "github.com/DataDog/datadog-serverless-compat-js",
@@ -23,19 +21,17 @@
   "packageManager": "yarn@4.12.0",
   "files": [
     "dist/**/*",
+    "bin/**/*",
     "init.js",
     "LICENSE-3rdparty.csv",
     "NOTICE"
   ],
-  "optionalDependencies": {
-    "@datadog/serverless-compat-linux-x64": "0.0.0",
-    "@datadog/serverless-compat-linux-arm64": "0.0.0",
-    "@datadog/serverless-compat-win32-x64": "0.0.0",
-    "@datadog/serverless-compat-win32-ia32": "0.0.0",
-    "@datadog/serverless-compat-darwin-arm64": "0.0.0"
-  },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "executableFiles": [
+      "./bin/linux-amd64/datadog-serverless-compat",
+      "./bin/windows-amd64/datadog-serverless-compat.exe"
+    ]
   },
   "bugs": {
     "url": "https://github.com/DataDog/datadog-serverless-compat-js/issues"
