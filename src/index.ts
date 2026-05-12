@@ -137,7 +137,6 @@ function start(logger: Logger = defaultLogger): void {
 
     logger.debug(`Spawning process from binary at path ${executableFilePath}`);
 
-
     if (process.platform === 'win32') {
       configureWindowsPipeEnv();
     }
