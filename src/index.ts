@@ -56,6 +56,15 @@ function getBinaryPath(): string {
   );
 }
 
+// Emits the backslash form `unix:\\.\pipe\<name>` rather than `unix://./pipe/<name>`.
+// dd-trace-js's agent exporter wraps DD_TRACE_AGENT_URL in `new URL()` before parsing;
+// for `unix://./pipe/<name>` that yields pathname `/pipe/<name>` which then becomes
+// socketPath — not a valid Windows pipe path. The backslash form parses with the
+// canonical `\\.\pipe\<name>` already in pathname, bypassing the bug.
+function pipeUrl(name: string): string {
+  return `unix:\\\\.\\pipe\\${name}`;
+}
+
 function configureWindowsPipeEnv(): void {
   const pipeName = process.env.DD_APM_WINDOWS_PIPE_NAME;
   const traceAgentUrl = process.env.DD_TRACE_AGENT_URL;
@@ -65,12 +74,12 @@ function configureWindowsPipeEnv(): void {
   }
 
   if (pipeName) {
-    process.env.DD_TRACE_AGENT_URL = `unix://./pipe/${pipeName}`;
+    process.env.DD_TRACE_AGENT_URL = pipeUrl(pipeName);
     return;
   }
 
   if (traceAgentUrl) {
-    const match = traceAgentUrl.match(/\/pipe\/(.+?)\/?$/);
+    const match = traceAgentUrl.match(/[/\\]pipe[/\\]([^/\\]+)[/\\]?$/);
     if (match) {
       process.env.DD_APM_WINDOWS_PIPE_NAME = match[1];
     }
@@ -79,7 +88,7 @@ function configureWindowsPipeEnv(): void {
 
   const generated = `dd-trace-${randomUUID()}`;
   process.env.DD_APM_WINDOWS_PIPE_NAME = generated;
-  process.env.DD_TRACE_AGENT_URL = `unix://./pipe/${generated}`;
+  process.env.DD_TRACE_AGENT_URL = pipeUrl(generated);
 }
 
 function isAzureFlexWithoutDDAzureResourceGroup(): boolean {
