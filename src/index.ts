@@ -66,6 +66,11 @@ function pipeUrl(name: string): string {
 }
 
 function configureWindowsPipeEnv(): void {
+  configureApmPipeEnv();
+  configureDogstatsdPipeEnv();
+}
+
+function configureApmPipeEnv(): void {
   const pipeName = process.env.DD_APM_WINDOWS_PIPE_NAME;
   const traceAgentUrl = process.env.DD_TRACE_AGENT_URL;
 
@@ -89,6 +94,33 @@ function configureWindowsPipeEnv(): void {
   const generated = `dd-trace-${randomUUID()}`;
   process.env.DD_APM_WINDOWS_PIPE_NAME = generated;
   process.env.DD_TRACE_AGENT_URL = pipeUrl(generated);
+}
+
+// Without DD_DOGSTATSD_WINDOWS_PIPE_NAME, the Rust binary binds UDP 8125 and
+// panics with AddrInUse when co-located with another function on the same
+// Windows plan (EP2/P1V3). DD_DOGSTATSD_PIPE_NAME is the dd-trace-js
+// dogstatsd client's pipe; both must point at the same pipe.
+function configureDogstatsdPipeEnv(): void {
+  const serverPipeName = process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME;
+  const clientPipeName = process.env.DD_DOGSTATSD_PIPE_NAME;
+
+  if (serverPipeName && clientPipeName) {
+    return;
+  }
+
+  if (serverPipeName) {
+    process.env.DD_DOGSTATSD_PIPE_NAME = serverPipeName;
+    return;
+  }
+
+  if (clientPipeName) {
+    process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME = clientPipeName;
+    return;
+  }
+
+  const generated = `dd-dogstatsd-${randomUUID()}`;
+  process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME = generated;
+  process.env.DD_DOGSTATSD_PIPE_NAME = generated;
 }
 
 function isAzureFlexWithoutDDAzureResourceGroup(): boolean {
