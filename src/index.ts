@@ -56,18 +56,40 @@ function getBinaryPath(): string {
   );
 }
 
-// Emits the backslash form `unix:\\.\pipe\<name>` rather than `unix://./pipe/<name>`.
-// dd-trace-js's agent exporter wraps DD_TRACE_AGENT_URL in `new URL()` before parsing;
-// for `unix://./pipe/<name>` that yields pathname `/pipe/<name>` which then becomes
-// socketPath — not a valid Windows pipe path. The backslash form parses with the
-// canonical `\\.\pipe\<name>` already in pathname, bypassing the bug.
+// Emits the backslash form `unix:\\.\pipe\<name>` so that `new URL(...).pathname`
+// yields the canonical Windows pipe path `\\.\pipe\<name>` — which dd-trace then
+// assigns to `options.socketPath`.
 function pipeUrl(name: string): string {
   return `unix:\\\\.\\pipe\\${name}`;
+}
+
+// dd-trace's span-stats writer (exporters/span-stats/writer.js) sends options
+// with `protocol: 'unix:'` and no socketPath. Node 22's ClientRequest rejects
+// that with ERR_INVALID_PROTOCOL. Restore both fields before forwarding.
+function patchHttpRequestForUnixUrl() {
+  const pipeName = process.env.DD_APM_WINDOWS_PIPE_NAME;
+  if (!pipeName) return;
+  const socketPath = `\\\\.\\pipe\\${pipeName}`;
+
+  for (const mod of [require('http'), require('https')]) {
+    for (const method of ['request', 'get']) {
+      const original = mod[method];
+      mod[method] = function (...args: any[]) {
+        const opts = args[0];
+        if (opts?.protocol === 'unix:') {
+          delete opts.protocol;
+          opts.socketPath ??= socketPath;
+        }
+        return original.apply(this, args);
+      };
+    }
+  }
 }
 
 function configureWindowsPipeEnv(): void {
   configureApmPipeEnv();
   configureDogstatsdPipeEnv();
+  patchHttpRequestForUnixUrl();
 }
 
 function configureApmPipeEnv(): void {
