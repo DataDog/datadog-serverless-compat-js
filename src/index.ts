@@ -63,18 +63,22 @@ function pipeUrl(name: string): string {
   return `unix:\\\\.\\pipe\\${name}`;
 }
 
+// We need to set socketPath or we lose trace stats
 // dd-trace's span-stats writer (exporters/span-stats/writer.js) sends options
-// with `protocol: 'unix:'` and no socketPath. Node 22's ClientRequest rejects
-// that with ERR_INVALID_PROTOCOL. Restore both fields before forwarding.
+// with `protocol: 'unix:'` and no socketPath,
+// Node 22's ClientRequest rejects that with ERR_INVALID_PROTOCOL,
+// so we need to translate the protocol into a socketPath
 function patchHttpRequestForUnixUrl() {
   const pipeName = process.env.DD_APM_WINDOWS_PIPE_NAME;
   if (!pipeName) return;
   const socketPath = `\\\\.\\pipe\\${pipeName}`;
 
-  for (const mod of [require('http'), require('https')]) {
+  for (const module of [require('http'), require('https')]) {
+    // Both `request` and `get` need patching: `http.get` calls the local
+    // `request` binding, not `exports.request`, so the request patch alone misses it.
     for (const method of ['request', 'get']) {
-      const original = mod[method];
-      mod[method] = function (...args: any[]) {
+      const original = module[method];
+      module[method] = function (...args: any[]) {
         const opts = args[0];
         if (opts?.protocol === 'unix:') {
           delete opts.protocol;
