@@ -63,7 +63,7 @@ function pipeUrl(name: string): string {
   return `unix:\\\\.\\pipe\\${name}`;
 }
 
-// We need to set socketPath or we lose trace stats:
+// We need to set socketPath or we lose trace stats and Node crashes:
 // dd-trace's span-stats writer (exporters/span-stats/writer.js) sends options
 // with `protocol: 'unix:'` and no socketPath, causing Node 22's ClientRequest
 // to crash with ERR_INVALID_PROTOCOL
