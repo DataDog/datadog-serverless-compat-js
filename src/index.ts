@@ -66,7 +66,11 @@ function pipeUrl(name: string): string {
 // We need to set socketPath or we lose trace stats and Node crashes:
 // dd-trace's span-stats writer (exporters/span-stats/writer.js) sends options
 // with `protocol: 'unix:'` and no socketPath, causing Node 22's ClientRequest
-// to crash with ERR_INVALID_PROTOCOL
+// to crash with ERR_INVALID_PROTOCOL.
+//
+// This is a temporary workaround.
+// Only fires for requests carrying `protocol: 'unix:'`, so ordinary http(s) traffic
+// (the user's app and the rest of the tracer) is unaffected.
 function patchHttpRequestForUnixUrl() {
   const pipeName = process.env.DD_APM_WINDOWS_PIPE_NAME;
   if (!pipeName) return;
@@ -80,19 +84,17 @@ function patchHttpRequestForUnixUrl() {
       module[method] = function (...args: any[]) {
         const opts = args[0];
         if (opts?.protocol === 'unix:') {
-          delete opts.protocol;
-          opts.socketPath ??= socketPath;
+          // Clone the caller's options object: Node rejects the `unix:` protocol,
+          // so we drop it and route to the pipe via `socketPath`.
+          // We don't override a socketPath the caller already set.
+          const patched = { ...opts, socketPath: opts.socketPath ?? socketPath };
+          delete patched.protocol;
+          args[0] = patched;
         }
         return original.apply(this, args);
       };
     }
   }
-}
-
-function configureWindowsPipeEnv(): void {
-  configureApmPipeEnv();
-  configureDogstatsdPipeEnv();
-  patchHttpRequestForUnixUrl();
 }
 
 function configureApmPipeEnv(): void {
@@ -109,6 +111,12 @@ function configureApmPipeEnv(): void {
   }
 
   if (traceAgentUrl) {
+    // The binary expects a bare pipe name, but the user provides a full URL
+    // (e.g. `unix://./pipe/foo` or `unix:\\.\pipe\foo`).
+    // Extract the name that follows the `pipe` segment, tolerating either
+    // slash style and a trailing separator.
+    // (dogstatsd has no equivalent: both of its env vars are already
+    // bare pipe names, so deriving one from the other is a plain copy.)
     const match = traceAgentUrl.match(/[/\\]pipe[/\\]([^/\\]+)[/\\]?$/);
     if (match) {
       process.env.DD_APM_WINDOWS_PIPE_NAME = match[1];
@@ -204,7 +212,9 @@ function start(logger: Logger = defaultLogger): void {
     logger.debug(`Spawning process from binary at path ${executableFilePath}`);
 
     if (process.platform === 'win32') {
-      configureWindowsPipeEnv();
+      configureApmPipeEnv();
+      configureDogstatsdPipeEnv();
+      patchHttpRequestForUnixUrl();
     }
     const env = {
       ...process.env,
