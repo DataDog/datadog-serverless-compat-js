@@ -68,9 +68,15 @@ function pipeUrl(name: string): string {
 // with `protocol: 'unix:'` and no socketPath, causing Node 22's ClientRequest
 // to crash with ERR_INVALID_PROTOCOL.
 //
-// This is a temporary workaround.
-// Only fires for requests carrying `protocol: 'unix:'`, so ordinary http(s) traffic
-// (the user's app and the rest of the tracer) is unaffected.
+// This is a temporary workaround until fixed upstream in dd-trace:
+// the span-stats writer should derive socketPath from the unix agent URL the
+// way the main agent exporter already does.
+//
+// The wrapper runs for every http(s) request in the process, but the rewrite
+// is gated on both `protocol: 'unix:'` AND the span-stats endpoint path
+// (`/v0.6/stats`). Ordinary http(s)-over-unix-socket traffic is left untouched.
+const SPAN_STATS_PATH = '/v0.6/stats';
+
 function patchHttpRequestForUnixUrl() {
   const pipeName = process.env.DD_APM_WINDOWS_PIPE_NAME;
   if (!pipeName) return;
@@ -83,7 +89,7 @@ function patchHttpRequestForUnixUrl() {
       const original = module[method];
       module[method] = function (...args: any[]) {
         const opts = args[0];
-        if (opts?.protocol === 'unix:') {
+        if (opts?.protocol === 'unix:' && opts?.path === SPAN_STATS_PATH) {
           // Clone the caller's options object: Node rejects the `unix:` protocol,
           // so we drop it and route to the pipe via `socketPath`.
           // We don't override a socketPath the caller already set.
