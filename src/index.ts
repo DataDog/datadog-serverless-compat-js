@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { spawn } from 'child_process';
 import { existsSync, mkdirSync, copyFileSync, chmodSync } from 'fs';
 import { tmpdir } from 'os';
@@ -55,6 +56,112 @@ function getBinaryPath(): string {
   );
 }
 
+// Emits the backslash form `unix:\\.\pipe\<name>` so that `new URL(...).pathname`
+// yields the canonical Windows pipe path `\\.\pipe\<name>` — which dd-trace then
+// assigns to `options.socketPath`.
+function pipeUrl(name: string): string {
+  return `unix:\\\\.\\pipe\\${name}`;
+}
+
+// We need to set socketPath or we lose trace stats and Node crashes:
+// dd-trace's span-stats writer (exporters/span-stats/writer.js) sends options
+// with `protocol: 'unix:'` and no socketPath, causing Node 22's ClientRequest
+// to crash with ERR_INVALID_PROTOCOL.
+//
+// This is a temporary workaround until fixed upstream in dd-trace:
+// the span-stats writer should derive socketPath from the unix agent URL the
+// way the main agent exporter already does.
+//
+// The wrapper runs for every http(s) request in the process, but the rewrite
+// is gated on both `protocol: 'unix:'` AND the span-stats endpoint path
+// (`/v0.6/stats`). Ordinary http(s)-over-unix-socket traffic is left untouched.
+const SPAN_STATS_PATH = '/v0.6/stats';
+
+function patchHttpRequestForUnixUrl() {
+  const pipeName = process.env.DD_APM_WINDOWS_PIPE_NAME;
+  if (!pipeName) return;
+  const socketPath = `\\\\.\\pipe\\${pipeName}`;
+
+  for (const module of [require('http'), require('https')]) {
+    // Both `request` and `get` need patching: `http.get` calls the local
+    // `request` binding, not `exports.request`, so the request patch alone misses it.
+    for (const method of ['request', 'get']) {
+      const original = module[method];
+      module[method] = function (...args: any[]) {
+        const opts = args[0];
+        if (opts?.protocol === 'unix:' && opts?.path === SPAN_STATS_PATH) {
+          // Clone the caller's options object: Node rejects the `unix:` protocol,
+          // so we drop it and route to the pipe via `socketPath`.
+          // We don't override a socketPath the caller already set.
+          const patched = { ...opts, socketPath: opts.socketPath ?? socketPath };
+          delete patched.protocol;
+          args[0] = patched;
+        }
+        return original.apply(this, args);
+      };
+    }
+  }
+}
+
+function configureApmPipeEnv(): void {
+  const pipeName = process.env.DD_APM_WINDOWS_PIPE_NAME;
+  const traceAgentUrl = process.env.DD_TRACE_AGENT_URL;
+
+  if (pipeName && traceAgentUrl) {
+    return;
+  }
+
+  if (pipeName) {
+    process.env.DD_TRACE_AGENT_URL = pipeUrl(pipeName);
+    return;
+  }
+
+  if (traceAgentUrl) {
+    // The binary expects a bare pipe name, but the user provides a full URL
+    // (e.g. `unix://./pipe/foo` or `unix:\\.\pipe\foo`).
+    // Extract the name that follows the `pipe` segment, tolerating either
+    // slash style and a trailing separator.
+    // (dogstatsd has no equivalent: both of its env vars are already
+    // bare pipe names, so deriving one from the other is a plain copy.)
+    const match = traceAgentUrl.match(/[/\\]pipe[/\\]([^/\\]+)[/\\]?$/);
+    if (match) {
+      process.env.DD_APM_WINDOWS_PIPE_NAME = match[1];
+    }
+    return;
+  }
+
+  const generated = `dd-trace-${randomUUID()}`;
+  process.env.DD_APM_WINDOWS_PIPE_NAME = generated;
+  process.env.DD_TRACE_AGENT_URL = pipeUrl(generated);
+}
+
+// Without DD_DOGSTATSD_WINDOWS_PIPE_NAME, the Rust binary binds UDP 8125 and
+// panics with AddrInUse when co-located with another function on the same
+// Windows plan (EP2/P1V3). DD_DOGSTATSD_PIPE_NAME is the dd-trace-js
+// dogstatsd client's pipe; both must point at the same pipe.
+function configureDogstatsdPipeEnv(): void {
+  const serverPipeName = process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME;
+  const clientPipeName = process.env.DD_DOGSTATSD_PIPE_NAME;
+
+  if (serverPipeName && clientPipeName) {
+    return;
+  }
+
+  if (serverPipeName) {
+    process.env.DD_DOGSTATSD_PIPE_NAME = serverPipeName;
+    return;
+  }
+
+  if (clientPipeName) {
+    process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME = clientPipeName;
+    return;
+  }
+
+  const generated = `dd-dogstatsd-${randomUUID()}`;
+  process.env.DD_DOGSTATSD_WINDOWS_PIPE_NAME = generated;
+  process.env.DD_DOGSTATSD_PIPE_NAME = generated;
+}
+
 function isAzureFlexWithoutDDAzureResourceGroup(): boolean {
   return (
     process.env.WEBSITE_SKU === "FlexConsumption" &&
@@ -110,6 +217,11 @@ function start(logger: Logger = defaultLogger): void {
 
     logger.debug(`Spawning process from binary at path ${executableFilePath}`);
 
+    if (process.platform === 'win32') {
+      configureApmPipeEnv();
+      configureDogstatsdPipeEnv();
+      patchHttpRequestForUnixUrl();
+    }
     const env = {
       ...process.env,
       DD_SERVERLESS_COMPAT_VERSION: packageVersion,
