@@ -63,18 +63,18 @@ function pipeUrl(name: string): string {
   return `unix:\\\\.\\pipe\\${name}`;
 }
 
-// We need to set socketPath or we lose trace stats and Node crashes:
-// dd-trace's span-stats writer (exporters/span-stats/writer.js) sends options
-// with `protocol: 'unix:'` and no socketPath, causing Node 22's ClientRequest
+// When dd-trace < 6.0.0, we need to set socketPath or we lose trace stats and Node crashes:
+// span-stats writers (exporters/span-stats/writer.js) send options
+// with `protocol: 'unix:'` but no socketPath, causing Node 22's ClientRequest
 // to crash with ERR_INVALID_PROTOCOL.
 //
-// This is a temporary workaround until fixed upstream in dd-trace:
-// the span-stats writer should derive socketPath from the unix agent URL the
-// way the main agent exporter already does.
+// On dd-trace >= 6.0.0 this patch is a harmless no-op — the writer never
+// sets `protocol: 'unix:'` on the options, so the gate below never matches.
+// It remains as a fallback for users still on dd-trace < 6.0.0.
 //
-// The wrapper runs for every http(s) request in the process, but the rewrite
-// is gated on both `protocol: 'unix:'` AND the span-stats endpoint path
-// (`/v0.6/stats`). Ordinary http(s)-over-unix-socket traffic is left untouched.
+// The wrapper runs for every http(s) request in the process, but is gated
+// on both `protocol: 'unix:'` AND the span-stats endpoint path (`/v0.6/stats`).
+// Ordinary http(s)-over-unix-socket traffic is left untouched.
 const SPAN_STATS_PATH = '/v0.6/stats';
 
 function patchHttpRequestForUnixUrl() {
