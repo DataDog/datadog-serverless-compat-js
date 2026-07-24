@@ -63,14 +63,13 @@ function pipeUrl(name: string): string {
   return `unix:\\\\.\\pipe\\${name}`;
 }
 
-// When dd-trace < 6.0.0, we need to set socketPath or we lose trace stats and Node crashes:
+// This is a fallback because of a bug in dd-trace < 6.0.0:
 // span-stats writers (exporters/span-stats/writer.js) send options
 // with `protocol: 'unix:'` but no socketPath, causing Node 22's ClientRequest
 // to crash with ERR_INVALID_PROTOCOL.
 //
-// On dd-trace >= 6.0.0 this patch is a harmless no-op — the writer never
+// This was fixed for dd-trace >= 6.0.0: the writer never
 // sets `protocol: 'unix:'` on the options, so the gate below never matches.
-// It remains as a fallback for users still on dd-trace < 6.0.0.
 //
 // The wrapper runs for every http(s) request in the process, but is gated
 // on both `protocol: 'unix:'` AND the span-stats endpoint path (`/v0.6/stats`).
