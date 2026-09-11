@@ -1,116 +1,387 @@
-name: Publish packages on NPM
+name: Publish package on npm
+run-name: Release v${{ inputs.package-version }} (${{ inputs.release-state }}, ${{ inputs.operation-id }})
 
 on:
   workflow_dispatch:
     inputs:
-      publish-package:
-        description: "Build or Build and Publish?"
+      package-version:
+        description: "Package version (x.y.z with an optional prerelease suffix)"
+        required: true
+        type: string
+      core-version:
+        description: "Published Serverless Compatibility Layer version (x.y.z)"
+        required: true
+        type: string
+      operation-id:
+        description: "Release operation ID from the parent pipeline"
+        required: true
+        type: string
+      release-state:
+        description: "Create a draft or publish the existing draft"
         required: true
         type: choice
-        default: "Build"
         options:
-          - "Build"
-          - "Build and Publish"
-      package-version-override:
-        description: "Package version override (optional, x.y.z)"
-        required: false
-        type: string
-        default: ""
+          - draft
+          - published
+
+concurrency:
+  group: serverless-compat-js-v${{ inputs.package-version }}
+  cancel-in-progress: false
 
 permissions: {}
 
+env:
+  PACKAGE_NAME: "@datadog/serverless-compat"
+  PACKAGE_VERSION: ${{ inputs.package-version }}
+  CORE_VERSION: ${{ inputs.core-version }}
+  OPERATION_ID: ${{ inputs.operation-id }}
+  RELEASE_STATE: ${{ inputs.release-state }}
+  RELEASE_AUTOMATION_ACTOR: ${{ vars.RELEASE_AUTOMATION_ACTOR }}
+
 jobs:
-  downloadbinaries:
+  validate:
+    name: Validate release request
     runs-on: ubuntu-latest
-    outputs:
-      package-version: ${{ steps.package.outputs.package-version }}
-      serverless-compat-version: ${{ steps.serverless-compat-binary.outputs.serverless-compat-version }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - id: package
+      - name: Validate dispatch identity and immutable inputs
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          REF: ${{ github.ref }}
         run: |
-          if [[ -n "${{ github.event.inputs.package-version-override }}" ]]; then
-            PACKAGE_VERSION="${{ github.event.inputs.package-version-override }}"
-          else
-            if [[ ! "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
-              echo "Invalid tag format: $GITHUB_REF, must be in the form vMAJOR.MINOR.PATCH"
-              exit 1
-            fi
-            PACKAGE_VERSION="${GITHUB_REF#refs/tags/v}"
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" != "workflow_dispatch" ]]; then
+            echo "This workflow only accepts workflow_dispatch events."
+            exit 1
+          fi
+          if [[ -z "$RELEASE_AUTOMATION_ACTOR" ]]; then
+            echo "The RELEASE_AUTOMATION_ACTOR repository variable must name the approved managed App actor."
+            exit 1
+          fi
+          if [[ "$ACTOR" != "$RELEASE_AUTOMATION_ACTOR" || "$TRIGGERING_ACTOR" != "$RELEASE_AUTOMATION_ACTOR" ]]; then
+            echo "Only the approved managed App may run this workflow."
+            exit 1
+          fi
+          if [[ ! "$PACKAGE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+            echo "Invalid package version: $PACKAGE_VERSION"
+            exit 1
+          fi
+          if [[ ! "$CORE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid core version: $CORE_VERSION"
+            exit 1
+          fi
+          if [[ -z "$OPERATION_ID" ]]; then
+            echo "The operation ID must not be empty."
+            exit 1
+          fi
+          if [[ "$RELEASE_STATE" != "draft" && "$RELEASE_STATE" != "published" ]]; then
+            echo "Invalid release state: $RELEASE_STATE"
+            exit 1
           fi
 
-          echo "package-version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
-      - id: serverless-compat-binary
-        run: |
-          RESPONSE=$(curl -s "https://api.github.com/repos/datadog/serverless-components/releases")
-          SERVERLESS_COMPAT_VERSION=$(echo "$RESPONSE" | jq -r --arg pattern "datadog-serverless-compat\/v[0-9]*\.[0-9]*\.[0-9]*" '.[] | select(.tag_name | test($pattern)) | .tag_name' | sort -V | tail -n 1)
+          EXPECTED_REF="refs/tags/v${PACKAGE_VERSION}"
+          if [[ "$REF" != "$EXPECTED_REF" ]]; then
+            echo "Invalid ref: $REF; expected $EXPECTED_REF"
+            exit 1
+          fi
 
-          echo "Using version ${SERVERLESS_COMPAT_VERSION} of Serverless Compatibility Layer binary"
-          echo "serverless-compat-version=$(echo "$SERVERLESS_COMPAT_VERSION" | jq -rR 'ltrimstr("sls-")')" >> "$GITHUB_OUTPUT"
-
-          curl --output-dir ./temp/ --create-dirs -O -s -L "https://github.com/DataDog/serverless-components/releases/download/${SERVERLESS_COMPAT_VERSION}/datadog-serverless-compat.zip"
-          unzip ./temp/datadog-serverless-compat.zip -d ./
-      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        with:
-          name: bin
-          path: bin
-  build:
+  draft:
+    name: Build draft package
+    if: ${{ inputs.release-state == 'draft' }}
+    needs: validate
     runs-on: ubuntu-latest
-    needs: [downloadbinaries]
-    env:
-      PACKAGE_VERSION: ${{ needs.downloadbinaries.outputs.package-version }}
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
-      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
-      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
-        with:
-          node-version: "18.x"
-      - run: yarn version ${{ env.PACKAGE_VERSION }}
-      - run: yarn
-      - run: yarn prebuild
-      - run: yarn build
-      - run: yarn pack
-      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        with:
-          name: package
-          path: package.tgz
-  publish:
-    if: ${{ github.event.inputs.publish-package == 'Build and Publish' }}
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-    needs: [downloadbinaries]
-    env:
-      PACKAGE_VERSION: ${{ needs.downloadbinaries.outputs.package-version }}
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
-      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
-      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
-        with:
-          node-version: "18.x"
-      - run: yarn version ${{ env.PACKAGE_VERSION }}
-      - run: yarn
-      - run: yarn prebuild
-      - run: yarn build
-      - run: yarn npm publish
-  release:
-    if: ${{ github.event.inputs.publish-package == 'Build and Publish' }}
-    runs-on: ubuntu-latest
-    needs: [downloadbinaries, build, publish]
     permissions:
       contents: write
     env:
-      PACKAGE_VERSION: ${{ needs.downloadbinaries.outputs.package-version }}
-      SERVERLESS_COMPAT_VERSION: ${{ needs.downloadbinaries.outputs.serverless-compat-version }}
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2.1.0
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          body: "Uses [${{ env.SERVERLESS_COMPAT_VERSION }}](https://github.com/DataDog/serverless-components/releases/tag/${{ env.SERVERLESS_COMPAT_VERSION }}) of the Serverless Compatibility Layer binary."
-          draft: true
-          tag_name: "v${{ env.PACKAGE_VERSION }}"
-          generate_release_notes: true
-          make_latest: true
+          fetch-depth: 0
+
+      - name: Download the published core release
+        run: |
+          set -euo pipefail
+
+          CORE_TAG="datadog-serverless-compat/v${CORE_VERSION}"
+          CORE_RELEASE_API="https://api.github.com/repos/DataDog/serverless-components/releases/tags/datadog-serverless-compat%2Fv${CORE_VERSION}"
+          curl --fail --silent --show-error --location "$CORE_RELEASE_API" --output core-release.json
+
+          if [[ "$(jq -r '.draft' core-release.json)" != "false" ]]; then
+            echo "Core release $CORE_TAG is not published."
+            exit 1
+          fi
+          if [[ "$(jq -r '.tag_name' core-release.json)" != "$CORE_TAG" ]]; then
+            echo "Core release tag does not match $CORE_TAG."
+            exit 1
+          fi
+
+          ASSET_COUNT="$(jq '[.assets[] | select(.name == "datadog-serverless-compat.zip")] | length' core-release.json)"
+          if [[ "$ASSET_COUNT" != "1" ]]; then
+            echo "Core release $CORE_TAG must contain exactly one datadog-serverless-compat.zip asset."
+            exit 1
+          fi
+          ASSET_URL="$(jq -er '.assets[] | select(.name == "datadog-serverless-compat.zip") | .browser_download_url' core-release.json)"
+          curl --fail --silent --show-error --location "$ASSET_URL" --output datadog-serverless-compat.zip
+          unzip -q datadog-serverless-compat.zip
+
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: "18.x"
+
+      - name: Build package.tgz
+        run: |
+          set -euo pipefail
+          yarn version "$PACKAGE_VERSION"
+          yarn
+          yarn prebuild
+          yarn build
+          yarn pack
+
+      - name: Create or reconcile the draft Release
+        run: |
+          set -euo pipefail
+
+          TAG="v${PACKAGE_VERSION}"
+          CORE_TAG="datadog-serverless-compat/v${CORE_VERSION}"
+          CORE_URL="https://github.com/DataDog/serverless-components/releases/tag/${CORE_TAG}"
+          PACKAGE_INTEGRITY="sha512-$(openssl dgst -sha512 -binary package.tgz | openssl base64 -A)"
+          BODY=$(cat <<EOF
+          Uses [${CORE_TAG}](${CORE_URL}) of the Serverless Compatibility Layer binary.
+
+          Source commit: ${GITHUB_SHA}
+          Package integrity: ${PACKAGE_INTEGRITY}
+          Draft operation ID: ${OPERATION_ID}
+          EOF
+          )
+
+          TAG_COMMIT="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG}" --jq '.sha')"
+          if [[ "$TAG_COMMIT" != "$GITHUB_SHA" ]]; then
+            echo "Tag $TAG resolves to $TAG_COMMIT, not workflow commit $GITHUB_SHA."
+            exit 1
+          fi
+
+          if RELEASE_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" 2>release-error)"; then
+            if [[ "$(jq -r '.draft' <<<"$RELEASE_JSON")" != "true" ]]; then
+              echo "Release $TAG already exists and is not a draft."
+              exit 1
+            fi
+            RELEASE_BODY="$(jq -r '.body // ""' <<<"$RELEASE_JSON")"
+            for EXPECTED_LINE in \
+              "Uses [${CORE_TAG}](${CORE_URL}) of the Serverless Compatibility Layer binary." \
+              "Source commit: ${GITHUB_SHA}" \
+              "Package integrity: ${PACKAGE_INTEGRITY}"; do
+              if ! grep -Fqx "$EXPECTED_LINE" <<<"$RELEASE_BODY"; then
+                echo "Release $TAG metadata conflicts with the requested release."
+                exit 1
+              fi
+            done
+          else
+            if ! grep -q 'HTTP 404' release-error; then
+              cat release-error >&2
+              exit 1
+            fi
+            RELEASE_JSON="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" \
+              -f tag_name="$TAG" \
+              -f target_commitish="$GITHUB_SHA" \
+              -f name="$TAG" \
+              -f body="$BODY" \
+              -F draft=true \
+              -F generate_release_notes=true)"
+          fi
+
+          ASSET_COUNT="$(jq '.assets | length' <<<"$RELEASE_JSON")"
+          if [[ "$ASSET_COUNT" == "0" ]]; then
+            gh release upload "$TAG" package.tgz --repo "$GITHUB_REPOSITORY"
+          elif [[ "$ASSET_COUNT" == "1" && "$(jq -r '.assets[0].name' <<<"$RELEASE_JSON")" == "package.tgz" ]]; then
+            ASSET_ID="$(jq -r '.assets[0].id' <<<"$RELEASE_JSON")"
+            gh api -H 'Accept: application/octet-stream' \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}" > existing-package.tgz
+            if ! cmp --silent package.tgz existing-package.tgz; then
+              echo "Existing package.tgz conflicts with the package built from $GITHUB_SHA."
+              exit 1
+            fi
+          else
+            echo "Release $TAG contains conflicting assets."
+            exit 1
+          fi
+
+  published:
+    name: Publish exact draft package
+    if: ${{ inputs.release-state == 'published' }}
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: "24.x"
+
+      - name: Download and validate the exact draft package
+        run: |
+          set -euo pipefail
+
+          TAG="v${PACKAGE_VERSION}"
+          CORE_TAG="datadog-serverless-compat/v${CORE_VERSION}"
+          CORE_URL="https://github.com/DataDog/serverless-components/releases/tag/${CORE_TAG}"
+
+          TAG_COMMIT="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG}" --jq '.sha')"
+          if [[ "$TAG_COMMIT" != "$GITHUB_SHA" ]]; then
+            echo "Tag $TAG resolves to $TAG_COMMIT, not workflow commit $GITHUB_SHA."
+            exit 1
+          fi
+
+          RELEASE_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}")"
+          RELEASE_BODY="$(jq -r '.body // ""' <<<"$RELEASE_JSON")"
+          for EXPECTED_LINE in \
+            "Uses [${CORE_TAG}](${CORE_URL}) of the Serverless Compatibility Layer binary." \
+            "Source commit: ${GITHUB_SHA}"; do
+            if ! grep -Fqx "$EXPECTED_LINE" <<<"$RELEASE_BODY"; then
+              echo "Release $TAG metadata conflicts with the requested release."
+              exit 1
+            fi
+          done
+
+          ASSET_COUNT="$(jq '.assets | length' <<<"$RELEASE_JSON")"
+          if [[ "$ASSET_COUNT" != "1" || "$(jq -r '.assets[0].name' <<<"$RELEASE_JSON")" != "package.tgz" ]]; then
+            echo "Release $TAG must contain only package.tgz."
+            exit 1
+          fi
+
+          mkdir draft-package
+          ASSET_ID="$(jq -r '.assets[0].id' <<<"$RELEASE_JSON")"
+          gh api -H 'Accept: application/octet-stream' \
+            "repos/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}" > draft-package/package.tgz
+
+          PACKAGE_INTEGRITY="sha512-$(openssl dgst -sha512 -binary draft-package/package.tgz | openssl base64 -A)"
+          if ! grep -Fqx "Package integrity: ${PACKAGE_INTEGRITY}" <<<"$RELEASE_BODY"; then
+            echo "package.tgz does not match the integrity recorded by the draft Release."
+            exit 1
+          fi
+
+          ARCHIVE_NAME="$(tar -xOzf draft-package/package.tgz package/package.json | jq -r '.name')"
+          ARCHIVE_VERSION="$(tar -xOzf draft-package/package.tgz package/package.json | jq -r '.version')"
+          if [[ "$ARCHIVE_NAME" != "$PACKAGE_NAME" || "$ARCHIVE_VERSION" != "$PACKAGE_VERSION" ]]; then
+            echo "package.tgz contains ${ARCHIVE_NAME}@${ARCHIVE_VERSION}, expected ${PACKAGE_NAME}@${PACKAGE_VERSION}."
+            exit 1
+          fi
+
+          jq -n \
+            --argjson release "$RELEASE_JSON" \
+            --arg integrity "$PACKAGE_INTEGRITY" \
+            '{release: $release, integrity: $integrity}' > release-state.json
+
+      - name: Reconcile npm publication
+        run: |
+          set -euo pipefail
+
+          PACKAGE_SPEC="${PACKAGE_NAME}@${PACKAGE_VERSION}"
+          LOCAL_INTEGRITY="$(jq -r '.integrity' release-state.json)"
+
+          read_registry_integrity() {
+            local npm_status
+            rm -f npm-view.out npm-view.err
+            npm view "$PACKAGE_SPEC" dist.integrity --json >npm-view.out 2>npm-view.err
+            npm_status=$?
+            if [[ "$npm_status" == "0" ]]; then
+              if ! REGISTRY_INTEGRITY="$(jq -er 'if type == "string" then . else error("unexpected integrity response") end' npm-view.out)"; then
+                cat npm-view.out >&2
+                return 1
+              fi
+              return 0
+            fi
+            if grep -Eq 'E404|404 Not Found' npm-view.out npm-view.err; then
+              return 2
+            fi
+            cat npm-view.out npm-view.err >&2
+            return 1
+          }
+
+          set +e
+          read_registry_integrity
+          REGISTRY_STATUS=$?
+          set -e
+
+          if [[ "$REGISTRY_STATUS" == "0" ]]; then
+            if [[ "$REGISTRY_INTEGRITY" != "$LOCAL_INTEGRITY" ]]; then
+              echo "npm already contains $PACKAGE_SPEC with conflicting integrity $REGISTRY_INTEGRITY."
+              exit 1
+            fi
+            echo "$PACKAGE_SPEC already exists on npm with matching integrity; skipping publication."
+            exit 0
+          fi
+          if [[ "$REGISTRY_STATUS" != "2" ]]; then
+            echo "Unable to determine whether $PACKAGE_SPEC exists on npm."
+            exit 1
+          fi
+
+          set +e
+          npm publish draft-package/package.tgz --access public
+          PUBLISH_STATUS=$?
+          set -e
+
+          VERIFIED=false
+          for ATTEMPT in 1 2 3 4 5; do
+            set +e
+            read_registry_integrity
+            REGISTRY_STATUS=$?
+            set -e
+            if [[ "$REGISTRY_STATUS" == "0" ]]; then
+              if [[ "$REGISTRY_INTEGRITY" != "$LOCAL_INTEGRITY" ]]; then
+                echo "npm contains $PACKAGE_SPEC with conflicting integrity $REGISTRY_INTEGRITY."
+                exit 1
+              fi
+              VERIFIED=true
+              break
+            fi
+            if [[ "$REGISTRY_STATUS" != "2" ]]; then
+              echo "Unable to verify $PACKAGE_SPEC after the publication attempt."
+              exit 1
+            fi
+            sleep 3
+          done
+
+          if [[ "$VERIFIED" != "true" ]]; then
+            if [[ "$PUBLISH_STATUS" != "0" ]]; then
+              echo "npm publish failed and $PACKAGE_SPEC is still absent."
+            else
+              echo "npm accepted the publish command, but $PACKAGE_SPEC could not be verified."
+            fi
+            exit 1
+          fi
+
+      - name: Publish the GitHub Release
+        run: |
+          set -euo pipefail
+
+          TAG="v${PACKAGE_VERSION}"
+          RELEASE_JSON="$(jq '.release' release-state.json)"
+          RELEASE_ID="$(jq -r '.id' <<<"$RELEASE_JSON")"
+          IS_DRAFT="$(jq -r '.draft' <<<"$RELEASE_JSON")"
+
+          if [[ "$IS_DRAFT" == "false" ]]; then
+            echo "Release $TAG is already published and matches the npm package."
+            exit 0
+          fi
+          if [[ "$IS_DRAFT" != "true" ]]; then
+            echo "Release $TAG has an invalid draft state."
+            exit 1
+          fi
+
+          EXISTING_BODY="$(jq -r '.body // ""' <<<"$RELEASE_JSON")"
+          PUBLISHED_BODY=$(cat <<EOF
+          ${EXISTING_BODY}
+
+          Published operation ID: ${OPERATION_ID}
+          EOF
+          )
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" \
+            -f body="$PUBLISHED_BODY" \
+            -F draft=false \
+            -f make_latest=true >/dev/null
