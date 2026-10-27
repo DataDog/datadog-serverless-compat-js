@@ -224,6 +224,9 @@ function start(logger: Logger = defaultLogger): void {
     const env = {
       ...process.env,
       DD_SERVERLESS_COMPAT_VERSION: packageVersion,
+      // Child-only metadata: provider runtime-version variables are not reliable
+      // on Gen1 Cloud Functions. Report the interpreter running this wrapper.
+      DD_SERVERLESS_COMPAT_RUNTIME: `node${process.versions.node}`,
     };
     spawn(executableFilePath, { stdio: 'inherit', env });
   } catch (err) {
