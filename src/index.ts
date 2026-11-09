@@ -224,10 +224,7 @@ function start(logger: Logger = defaultLogger): void {
     const env = {
       ...process.env,
       DD_SERVERLESS_COMPAT_VERSION: packageVersion,
-      NODE_VERSION: process.versions.node,
-      ...(environment === CloudEnvironment.AZURE_FUNCTION
-        ? { FUNCTIONS_WORKER_RUNTIME_VERSION: process.versions.node }
-        : {}),
+      DD_SERVERLESS_COMPAT_RUNTIME: `node${process.versions.node}`,
     };
     spawn(executableFilePath, { stdio: 'inherit', env });
   } catch (err) {

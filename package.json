@@ -9,7 +9,7 @@
     "clean": "rimraf dist",
     "lint": "node scripts/check_licenses.js && yarn run eslint . && yarn npm audit",
     "prebuild": "node -p \"'export const LIB_VERSION = ' + JSON.stringify(require('./package.json').version) + ';'\" > src/version.ts",
-    "test": "jest"
+    "test": "yarn run prebuild && jest"
   },
   "repository": "github.com/DataDog/datadog-serverless-compat-js",
   "keywords": [
