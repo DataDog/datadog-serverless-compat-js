@@ -224,6 +224,7 @@ function start(logger: Logger = defaultLogger): void {
     const env = {
       ...process.env,
       DD_SERVERLESS_COMPAT_VERSION: packageVersion,
+      DD_SERVERLESS_COMPAT_RUNTIME: `node${process.versions.node}`,
     };
     spawn(executableFilePath, { stdio: 'inherit', env });
   } catch (err) {
